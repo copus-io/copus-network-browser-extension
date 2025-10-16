@@ -982,7 +982,7 @@ async function publishToCopus(payload) {
   console.log('=== publishToCopus function called ===');
   console.log('Payload received:', payload);
 
-  const endpoint = 'https://api-test.copus.network/client/author/article/edit';
+  const endpoint = 'https://api-test.copus.network/plugin/plugin/author/article/edit';
   console.log('Using endpoint:', endpoint);
 
   let response;
@@ -1097,6 +1097,23 @@ async function handlePublish() {
   try {
     elements.publishButton.disabled = true;
 
+    // Add paper plane animation to button
+    elements.publishButton.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="paper-plane">
+          <div class="paper-plane__trail">
+            <div class="paper-plane__trail-line"></div>
+          </div>
+          <div class="paper-plane__icon">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M20.33 3.66996C20.1408 3.48213 19.9035 3.35008 19.6442 3.28833C19.3849 3.22659 19.1135 3.23753 18.86 3.31996L4.23 8.19996C3.95 8.29996 3.7 8.49996 3.53 8.76996C3.36 9.03996 3.3 9.35996 3.36 9.65996C3.42 9.95996 3.6 10.22 3.86 10.39C4.12 10.56 4.44 10.62 4.74 10.56L9.3 9.49996L14.8 15L13.74 19.56C13.68 19.86 13.74 20.18 13.91 20.44C14.08 20.7 14.34 20.88 14.64 20.94C14.73 20.96 14.82 20.97 14.91 20.97C15.16 20.97 15.41 20.89 15.62 20.74C15.83 20.59 15.99 20.37 16.08 20.12L20.96 5.49996C21.0323 5.24547 21.0354 4.97715 20.9688 4.72193C20.9023 4.46671 20.7687 4.23423 20.58 4.04996L20.33 3.66996Z" fill="currentColor"/>
+            </svg>
+          </div>
+        </div>
+        <span>Publishing...</span>
+      </div>
+    `;
+
     // Load page data now if not already loaded (for auto cover image detection)
     if (!state.images || state.images.length === 0) {
       // No status message needed while detecting page images
@@ -1172,10 +1189,52 @@ async function handlePublish() {
     try {
       const result = await publishToCopus(payload);
       console.log('✅ publishToCopus completed successfully, result:', result);
+      console.log('✅ Result structure:', JSON.stringify(result, null, 2));
 
       const successMessage = result.message || 'You\'ve shared your treasure!';
       showToast(successMessage, 'success');
       console.log('🎉 Entire publish flow completed successfully');
+
+      // Get the article UUID from the response
+      // The API returns: { status: 1, msg: "success", data: "uuid-string" }
+      // So result.data.data is the UUID string directly
+      let articleUuid = null;
+
+      if (typeof result.data?.data === 'string') {
+        // UUID is a string directly in result.data.data
+        articleUuid = result.data.data;
+      } else if (result.data?.data?.uuid) {
+        // UUID is in an object with uuid property
+        articleUuid = result.data.data.uuid;
+      } else if (typeof result.data === 'string') {
+        // UUID is directly in result.data
+        articleUuid = result.data;
+      } else if (result.data?.uuid) {
+        // UUID is in result.data.uuid
+        articleUuid = result.data.uuid;
+      }
+
+      console.log('✅ Extracted article UUID:', articleUuid);
+
+      if (articleUuid) {
+        // Open the work page in a new window after a short delay
+        setTimeout(() => {
+          const workUrl = `http://localhost:5177/work/${articleUuid}`;
+          console.log('✅ Opening work page in new window:', workUrl);
+
+          if (chrome?.tabs?.create) {
+            chrome.tabs.create({ url: workUrl });
+          } else {
+            window.open(workUrl, '_blank');
+          }
+
+          // Close the extension popup
+          window.close();
+        }, 1500);
+      } else {
+        console.error('❌ No UUID found in response');
+        console.error('Response data:', result.data);
+      }
     } catch (publishError) {
       console.error('❌ publishToCopus FAILED:', publishError);
       throw publishError; // Re-throw to be caught by outer catch
@@ -1187,6 +1246,8 @@ async function handlePublish() {
   } finally {
     console.log('🏁 Publish attempt completed, re-enabling button');
     elements.publishButton.disabled = false;
+    // Restore button text
+    elements.publishButton.innerHTML = 'Publish';
   }
 }
 

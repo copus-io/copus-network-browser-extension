@@ -107,6 +107,18 @@ body {
   gap: 8px;
 }
 
+.logo-link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.logo-link:hover {
+  opacity: 0.8;
+}
+
 .logo {
   width: 25px;
   height: 25px;
@@ -119,8 +131,25 @@ body {
 }
 
 .brand-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.brand-name {
   font-weight: 600;
-  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.brand-separator {
+  color: #a8a8a8;
+  font-weight: 300;
+}
+
+.brand-tagline {
+  font-weight: 300;
   color: var(--text-primary);
 }
 
@@ -471,6 +500,11 @@ input, select, textarea {
   color: white;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 120px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-publish:hover {
@@ -796,6 +830,72 @@ input, select, textarea {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Paper plane flying animation */
+@keyframes fly-plane {
+  0% {
+    transform: translateX(-100%) translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateX(50%) translateY(-10px) rotate(5deg);
+  }
+  100% {
+    transform: translateX(200%) translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes fly-trail {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+/* Paper plane component styles */
+.paper-plane {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.paper-plane__trail {
+  position: absolute;
+  inset: 0;
+  opacity: 0.3;
+}
+
+.paper-plane__trail-line {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.6), transparent);
+  position: absolute;
+  top: 16px;
+  animation: fly-trail 2s infinite ease-in-out;
+}
+
+.paper-plane__icon {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  animation: fly-plane 2s infinite ease-in-out;
+}
+
+.paper-plane__icon svg {
+  width: 100%;
+  height: 100%;
+  color: white;
 }
 
 /* Hide main container when login screen is shown */

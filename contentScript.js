@@ -173,12 +173,6 @@ window.addEventListener('storage', function(e) {
   }
 });
 
-// Periodic check every 5 seconds (as backup)
-setInterval(() => {
-  console.log('[Copus Extension] Periodic auth check...');
-  checkForAuthToken();
-}, 5000);
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'collectPageData') {
     const images = collectPageImages();
