@@ -698,13 +698,13 @@ function updateUserAvatar(user) {
     console.log('[Copus Extension] User username:', user.username);
 
     // Use the same avatar logic as the main site
-    // Priority: user.faceUrl (if exists and not empty) → user.avatar → generated DiceBear avatar
+    // Priority: user.faceUrl (if exists and not empty) → user.avatar → local default profile SVG
     const avatarUrl = user.faceUrl ||
                      user.avatar ||
-                     `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username || 'vivi'}&backgroundColor=b6e3f4`;
+                     'profile-default.svg'; // Use local SVG file matching main site
 
     console.log('[Copus Extension] Final avatar URL:', avatarUrl);
-    console.log('[Copus Extension] Avatar source:', user.faceUrl ? 'user faceUrl' : user.avatar ? 'user avatar' : 'generated DiceBear');
+    console.log('[Copus Extension] Avatar source:', user.faceUrl ? 'user faceUrl' : user.avatar ? 'user avatar' : 'profile-default.svg');
 
     // Test if the image loads successfully
     const testImg = new Image();
