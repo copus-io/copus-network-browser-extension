@@ -99,9 +99,16 @@ async function checkForAuthToken(force = false) {
         console.log('[Copus Extension] Found valid JWT token in localStorage');
 
         try {
+          // Determine API base URL based on current environment
+          const apiBaseUrl = isLocalDev
+            ? 'http://localhost:8080'  // Local backend for development
+            : 'https://api-test.copus.network';  // Production/test API
+
+          const apiUrl = `${apiBaseUrl}/client/user/userInfo`;
+
           // Validate token with API endpoint
-          console.log('[Copus Extension] Validating token with API...');
-          const response = await fetch('https://api-test.copus.network/client/user/userInfo', {
+          console.log('[Copus Extension] Validating token with API:', apiUrl);
+          const response = await fetch(apiUrl, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
