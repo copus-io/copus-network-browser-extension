@@ -510,9 +510,9 @@ async function fetchUnreadNotificationCount() {
       return;
     }
 
-    // Fetch unread count from API (same endpoint as main site)
+    // Fetch unread count from API (plugin-specific endpoint)
     const apiBaseUrl = getApiBaseUrl();
-    const response = await fetch(`${apiBaseUrl}/client/user/msg/countMsg`, {
+    const response = await fetch(`${apiBaseUrl}/plugin/plugin/user/msg/countMsg`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${result.copus_token}`,
