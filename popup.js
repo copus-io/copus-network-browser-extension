@@ -898,7 +898,7 @@ async function fetchCategories() {
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
     const apiBaseUrl = getApiBaseUrl();
-    const response = await fetch(`${apiBaseUrl}/client/author/article/categoryList`, {
+    const response = await fetch(`${apiBaseUrl}/plugin/plugin/author/article/categoryList`, {
       method: 'GET',
       headers: headers,
       signal: controller.signal
