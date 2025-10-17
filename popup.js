@@ -1432,13 +1432,9 @@ async function initialize() {
     });
   }, 100); // Small delay to ensure UI is fully rendered
 
-  // Set up periodic notification checking (every 30 seconds, same as main site)
-  setInterval(() => {
-    if (state.isLoggedIn && elements.mainContainer.style.display === 'flex') {
-      console.log('[Copus Extension] Periodic notification check...');
-      fetchUnreadNotificationCount();
-    }
-  }, 30000); // 30 seconds
+  // Note: userInfo and notification count are fetched once on popup open
+  // via validateUserInBackground() which calls checkAuthentication() and fetchUnreadNotificationCount()
+  // No periodic polling - data is fresh on each popup open
 }
 
 // Separate function for page data loading (non-blocking)
