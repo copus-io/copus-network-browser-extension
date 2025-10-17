@@ -99,9 +99,9 @@ async function checkForAuthToken(force = false) {
         console.log('[Copus Extension] Found valid JWT token in localStorage');
 
         try {
-          // Validate token with correct API endpoint
+          // Validate token with plugin-specific API endpoint
           console.log('[Copus Extension] Validating token with API...');
-          const response = await fetch('https://api-test.copus.network/client/user/userInfo', {
+          const response = await fetch('https://api-test.copus.network/plugin/user/userInfo', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
