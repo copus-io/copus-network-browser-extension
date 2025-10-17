@@ -623,13 +623,13 @@ async function checkAuthentication() {
 
     console.log('[Copus Extension] Token found, validating...');
 
-    // Determine API URL based on where the extension is being used
+    // Use plugin-specific userInfo endpoint
     const apiBaseUrl = getApiBaseUrl();
-    const apiUrl = `${apiBaseUrl}/client/user/userInfo`;
+    const apiUrl = `${apiBaseUrl}/plugin/plugin/user/userInfo`;
 
     console.log('[Copus Extension] Using API URL:', apiUrl);
 
-    // Verify token validity by making a test API call with the correct endpoint
+    // Verify token validity by making a test API call with the plugin endpoint
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {

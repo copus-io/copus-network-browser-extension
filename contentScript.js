@@ -99,9 +99,8 @@ async function checkForAuthToken(force = false) {
         console.log('[Copus Extension] Found valid JWT token in localStorage');
 
         try {
-          // Always use the production/test API for now
-          // The frontend runs on localhost:5177 but uses the test API backend
-          const apiUrl = 'https://api-test.copus.network/client/user/userInfo';
+          // Use the plugin-specific userInfo endpoint
+          const apiUrl = 'https://api-test.copus.network/plugin/plugin/user/userInfo';
 
           // Validate token with API endpoint
           console.log('[Copus Extension] Validating token with API:', apiUrl);
