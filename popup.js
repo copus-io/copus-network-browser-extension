@@ -254,7 +254,8 @@ async function uploadImageToS3(file) {
       console.warn('[Copus Extension] No auth token found for image upload');
     }
 
-    const response = await fetch('https://api-test.copus.network/client/common/uploadImage2S3', {
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/client/common/uploadImage2S3`, {
       method: 'POST',
       headers: headers,
       body: formData
@@ -510,7 +511,8 @@ async function fetchUnreadNotificationCount() {
     }
 
     // Fetch unread count from API (same endpoint as main site)
-    const response = await fetch('https://api-test.copus.network/client/user/msg/countMsg', {
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/client/user/msg/countMsg`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${result.copus_token}`,
@@ -580,6 +582,15 @@ function handleNotificationClick() {
   window.close();
 }
 
+// Helper function to get the API base URL
+function getApiBaseUrl() {
+  // Check if we're in a development environment by checking the current active tab
+  // We'll use localhost API if the extension is being used on localhost
+  // For now, default to localhost:8080 for development
+  // This will be dynamically determined when checking tabs
+  return 'http://localhost:8080';
+}
+
 // Authentication functions
 async function checkAuthentication() {
   try {
@@ -613,8 +624,14 @@ async function checkAuthentication() {
 
     console.log('[Copus Extension] Token found, validating...');
 
+    // Determine API URL based on where the extension is being used
+    const apiBaseUrl = getApiBaseUrl();
+    const apiUrl = `${apiBaseUrl}/client/user/userInfo`;
+
+    console.log('[Copus Extension] Using API URL:', apiUrl);
+
     // Verify token validity by making a test API call with the correct endpoint
-    const response = await fetch('https://api-test.copus.network/client/user/userInfo', {
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${result.copus_token}`,
@@ -881,7 +898,8 @@ async function fetchCategories() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-    const response = await fetch('https://api-test.copus.network/client/author/article/categoryList', {
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/client/author/article/categoryList`, {
       method: 'GET',
       headers: headers,
       signal: controller.signal
@@ -982,7 +1000,8 @@ async function publishToCopus(payload) {
   console.log('=== publishToCopus function called ===');
   console.log('Payload received:', payload);
 
-  const endpoint = 'https://api-test.copus.network/plugin/plugin/author/article/edit';
+  const apiBaseUrl = getApiBaseUrl();
+  const endpoint = `${apiBaseUrl}/plugin/plugin/author/article/edit`;
   console.log('Using endpoint:', endpoint);
 
   let response;
