@@ -584,11 +584,10 @@ function handleNotificationClick() {
 
 // Helper function to get the API base URL
 function getApiBaseUrl() {
-  // Check if we're in a development environment by checking the current active tab
-  // We'll use localhost API if the extension is being used on localhost
-  // For now, default to localhost:8080 for development
-  // This will be dynamically determined when checking tabs
-  return 'http://localhost:8080';
+  // For now, always use the production/test API
+  // This ensures the extension works even if local backend isn't running
+  // TODO: Add automatic detection of local vs production environment
+  return 'https://api-test.copus.network';
 }
 
 // Authentication functions
