@@ -165,6 +165,24 @@
     </div>
     </div> <!-- End main-container -->
 
+    <!-- Image Cropper Modal -->
+    <div id="image-cropper-modal" class="cropper-modal" style="display: none;">
+      <div class="cropper-content">
+        <h3 class="cropper-title">Crop Image</h3>
+        <div class="cropper-canvas-wrapper">
+          <canvas id="cropper-canvas" class="cropper-canvas"></canvas>
+        </div>
+        <div class="cropper-instructions">
+          <div>🎯 Drag to move / Drag corners to resize</div>
+          <div>🔒 16:9 aspect ratio</div>
+        </div>
+        <div class="cropper-actions">
+          <button id="cropper-cancel" class="btn-cancel">Cancel</button>
+          <button id="cropper-confirm" class="btn-publish">Confirm</button>
+        </div>
+      </div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

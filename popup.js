@@ -1269,6 +1269,269 @@ async function handlePublish() {
   }
 }
 
+// Image Cropper
+class ImageCropper {
+  constructor() {
+    this.modal = document.getElementById('image-cropper-modal');
+    this.canvas = document.getElementById('cropper-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.confirmBtn = document.getElementById('cropper-confirm');
+    this.cancelBtn = document.getElementById('cropper-cancel');
+
+    this.image = null;
+    this.loadedImage = null;
+    this.cropArea = { x: 0, y: 0, width: 0, height: 0 };
+    this.isDragging = false;
+    this.dragStart = { x: 0, y: 0 };
+    this.resizeHandle = null;
+    this.originalCropArea = null;
+    this.aspectRatio = 16 / 9;
+    this.imgDimensions = { width: 0, height: 0 };
+    this.onCropCallback = null;
+
+    this.setupEventListeners();
+  }
+
+  setupEventListeners() {
+    this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    this.canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+    this.confirmBtn.addEventListener('click', this.handleConfirm.bind(this));
+    this.cancelBtn.addEventListener('click', this.handleCancel.bind(this));
+  }
+
+  show(file, onCrop) {
+    this.onCropCallback = onCrop;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        this.loadedImage = img;
+        this.initializeCropper(img);
+        this.modal.style.display = 'flex';
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  hide() {
+    this.modal.style.display = 'none';
+  }
+
+  initializeCropper(img) {
+    const maxWidth = 300;
+    const maxHeight = 220;
+    let displayWidth = img.width;
+    let displayHeight = img.height;
+
+    if (displayWidth > maxWidth || displayHeight > maxHeight) {
+      const scale = Math.min(maxWidth / displayWidth, maxHeight / displayHeight);
+      displayWidth *= scale;
+      displayHeight *= scale;
+    }
+
+    this.canvas.width = displayWidth;
+    this.canvas.height = displayHeight;
+    this.imgDimensions = { width: displayWidth, height: displayHeight };
+
+    // Full width initial crop
+    let cropWidth = displayWidth;
+    let cropHeight = displayWidth / this.aspectRatio;
+
+    if (cropHeight > displayHeight) {
+      cropHeight = displayHeight;
+      cropWidth = displayHeight * this.aspectRatio;
+    }
+
+    this.cropArea = {
+      x: (displayWidth - cropWidth) / 2,
+      y: (displayHeight - cropHeight) / 2,
+      width: cropWidth,
+      height: cropHeight
+    };
+
+    this.drawCanvas();
+  }
+
+  drawCanvas() {
+    const { ctx, canvas, loadedImage, cropArea } = this;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+
+    // Draw overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, canvas.width, cropArea.y);
+    ctx.fillRect(0, cropArea.y, cropArea.x, cropArea.height);
+    ctx.fillRect(cropArea.x + cropArea.width, cropArea.y, canvas.width - (cropArea.x + cropArea.width), cropArea.height);
+    ctx.fillRect(0, cropArea.y + cropArea.height, canvas.width, canvas.height - (cropArea.y + cropArea.height));
+
+    // Draw crop frame
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cropArea.x, cropArea.y, cropArea.width, cropArea.height);
+
+    // Draw resize handles
+    const handleSize = 8;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+
+    const handles = [
+      { x: cropArea.x - handleSize/2, y: cropArea.y - handleSize/2 },
+      { x: cropArea.x + cropArea.width - handleSize/2, y: cropArea.y - handleSize/2 },
+      { x: cropArea.x + cropArea.width - handleSize/2, y: cropArea.y + cropArea.height - handleSize/2 },
+      { x: cropArea.x - handleSize/2, y: cropArea.y + cropArea.height - handleSize/2 }
+    ];
+
+    handles.forEach(handle => {
+      ctx.fillRect(handle.x, handle.y, handleSize, handleSize);
+      ctx.strokeRect(handle.x, handle.y, handleSize, handleSize);
+    });
+  }
+
+  getResizeHandle(x, y) {
+    const handleSize = 8;
+    const tolerance = 4;
+    const { cropArea } = this;
+
+    const handles = [
+      { type: 'nw', x: cropArea.x - handleSize/2, y: cropArea.y - handleSize/2 },
+      { type: 'ne', x: cropArea.x + cropArea.width - handleSize/2, y: cropArea.y - handleSize/2 },
+      { type: 'se', x: cropArea.x + cropArea.width - handleSize/2, y: cropArea.y + cropArea.height - handleSize/2 },
+      { type: 'sw', x: cropArea.x - handleSize/2, y: cropArea.y + cropArea.height - handleSize/2 }
+    ];
+
+    for (const handle of handles) {
+      if (x >= handle.x - tolerance && x <= handle.x + handleSize + tolerance &&
+          y >= handle.y - tolerance && y <= handle.y + handleSize + tolerance) {
+        return handle.type;
+      }
+    }
+
+    if (x >= cropArea.x && x <= cropArea.x + cropArea.width &&
+        y >= cropArea.y && y <= cropArea.y + cropArea.height) {
+      return 'move';
+    }
+
+    return null;
+  }
+
+  handleMouseDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const handle = this.getResizeHandle(x, y);
+    if (handle) {
+      this.resizeHandle = handle;
+      this.isDragging = true;
+      this.dragStart = { x, y };
+      this.originalCropArea = { ...this.cropArea };
+    }
+  }
+
+  handleMouseMove(e) {
+    if (!this.isDragging || !this.resizeHandle) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const dx = x - this.dragStart.x;
+    const dy = y - this.dragStart.y;
+
+    let newCropArea = { ...this.originalCropArea };
+
+    if (this.resizeHandle === 'move') {
+      newCropArea.x = Math.max(0, Math.min(this.originalCropArea.x + dx, this.imgDimensions.width - this.originalCropArea.width));
+      newCropArea.y = Math.max(0, Math.min(this.originalCropArea.y + dy, this.imgDimensions.height - this.originalCropArea.height));
+    } else {
+      // Handle corner resizing
+      const corners = {
+        'nw': () => {
+          newCropArea.x = Math.max(0, this.originalCropArea.x + dx);
+          newCropArea.width = Math.max(50, this.originalCropArea.width - dx);
+          newCropArea.height = newCropArea.width / this.aspectRatio;
+          newCropArea.y = this.originalCropArea.y + this.originalCropArea.height - newCropArea.height;
+        },
+        'ne': () => {
+          newCropArea.width = Math.max(50, this.originalCropArea.width + dx);
+          newCropArea.height = newCropArea.width / this.aspectRatio;
+          newCropArea.y = this.originalCropArea.y + this.originalCropArea.height - newCropArea.height;
+        },
+        'se': () => {
+          newCropArea.width = Math.max(50, this.originalCropArea.width + dx);
+          newCropArea.height = newCropArea.width / this.aspectRatio;
+        },
+        'sw': () => {
+          newCropArea.x = Math.max(0, this.originalCropArea.x + dx);
+          newCropArea.width = Math.max(50, this.originalCropArea.width - dx);
+          newCropArea.height = newCropArea.width / this.aspectRatio;
+        }
+      };
+
+      if (corners[this.resizeHandle]) {
+        corners[this.resizeHandle]();
+      }
+    }
+
+    // Keep within bounds
+    newCropArea.x = Math.max(0, Math.min(newCropArea.x, this.imgDimensions.width - newCropArea.width));
+    newCropArea.y = Math.max(0, Math.min(newCropArea.y, this.imgDimensions.height - newCropArea.height));
+    newCropArea.width = Math.min(newCropArea.width, this.imgDimensions.width - newCropArea.x);
+    newCropArea.height = Math.min(newCropArea.height, this.imgDimensions.height - newCropArea.y);
+
+    this.cropArea = newCropArea;
+    this.drawCanvas();
+  }
+
+  handleMouseUp() {
+    this.isDragging = false;
+    this.resizeHandle = null;
+  }
+
+  async handleConfirm() {
+    const outputCanvas = document.createElement('canvas');
+    const outputCtx = outputCanvas.getContext('2d');
+
+    const scaleX = this.loadedImage.width / this.imgDimensions.width;
+    const scaleY = this.loadedImage.height / this.imgDimensions.height;
+
+    const actualCrop = {
+      x: this.cropArea.x * scaleX,
+      y: this.cropArea.y * scaleY,
+      width: this.cropArea.width * scaleX,
+      height: this.cropArea.height * scaleY
+    };
+
+    outputCanvas.width = Math.min(1920, actualCrop.width);
+    outputCanvas.height = Math.min(1080, actualCrop.height);
+
+    outputCtx.drawImage(
+      this.loadedImage,
+      actualCrop.x, actualCrop.y, actualCrop.width, actualCrop.height,
+      0, 0, outputCanvas.width, outputCanvas.height
+    );
+
+    outputCanvas.toBlob((blob) => {
+      if (blob && this.onCropCallback) {
+        const file = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+        this.onCropCallback(file);
+      }
+      this.hide();
+    }, 'image/jpeg', 0.9);
+  }
+
+  handleCancel() {
+    this.hide();
+  }
+}
+
+// Initialize cropper
+const imageCropper = new ImageCropper();
+
 function handleFileUpload(event) {
   const file = event.target.files && event.target.files[0];
 
@@ -1276,16 +1539,16 @@ function handleFileUpload(event) {
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    setCoverImage({ src: reader.result }, 'upload', file); // Pass the original file
-    // No status message needed for file selection
-    event.target.value = '';
-  };
-  reader.onerror = () => {
-    setStatus('Failed to read the selected file. Please try again.', 'error');
-  };
-  reader.readAsDataURL(file);
+  // Show cropper instead of directly setting image
+  imageCropper.show(file, (croppedFile) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCoverImage({ src: reader.result }, 'upload', croppedFile);
+    };
+    reader.readAsDataURL(croppedFile);
+  });
+
+  event.target.value = '';
 }
 
 async function handleScreenshotCapture() {
