@@ -18,7 +18,86 @@ const state = {
 
 const elements = {};
 
-// Local storage functions for token management
+// ========== Recent Categories Utility Functions ==========
+const RECENT_CATEGORIES_KEY = 'copus_recent_categories';
+const MAX_RECENT_CATEGORIES = 5;
+
+/**
+ * Get recently used categories from localStorage
+ */
+function getRecentCategories() {
+  try {
+    const stored = localStorage.getItem(RECENT_CATEGORIES_KEY);
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch (error) {
+    console.error('[Recent Categories] Error reading:', error);
+    return [];
+  }
+}
+
+/**
+ * Add a category to recently used list
+ */
+function addRecentCategory(categoryId, categoryName) {
+  try {
+    let recentCategories = getRecentCategories();
+
+    // Remove existing entry for this category
+    recentCategories = recentCategories.filter(cat => cat.id !== categoryId);
+
+    // Add to the beginning of the list
+    recentCategories.unshift({
+      id: categoryId,
+      name: categoryName,
+      timestamp: Date.now()
+    });
+
+    // Keep only the most recent MAX_RECENT_CATEGORIES
+    recentCategories = recentCategories.slice(0, MAX_RECENT_CATEGORIES);
+
+    localStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(recentCategories));
+    console.log('[Recent Categories] Saved:', categoryName);
+  } catch (error) {
+    console.error('[Recent Categories] Error saving:', error);
+  }
+}
+
+/**
+ * Sort categories to show recently used ones first
+ */
+function sortCategoriesByRecent(categories) {
+  const recentCategories = getRecentCategories();
+  const recentIds = new Set(recentCategories.map(cat => cat.id));
+
+  // Split into recent and non-recent
+  const recent = [];
+  const others = [];
+
+  categories.forEach(category => {
+    const categoryId = category.id || category.value;
+    if (recentIds.has(categoryId)) {
+      recent.push(category);
+    } else {
+      others.push(category);
+    }
+  });
+
+  // Sort recent categories by their timestamp (most recent first)
+  recent.sort((a, b) => {
+    const aId = a.id || a.value;
+    const bId = b.id || b.value;
+    const aRecent = recentCategories.find(cat => cat.id === aId);
+    const bRecent = recentCategories.find(cat => cat.id === bId);
+    return (bRecent?.timestamp || 0) - (aRecent?.timestamp || 0);
+  });
+
+  console.log('[Recent Categories] Sorted:', recent.length, 'recent,', others.length, 'others');
+  // Combine: recent first, then others
+  return [...recent, ...others];
+}
+
+// ========== Local storage functions for token management ==========
 function saveAuthToken(token) {
   try {
     localStorage.setItem('copus_auth_token', token);
@@ -333,6 +412,11 @@ function handleTopicSelection(event) {
   // Update state
   state.selectedTopic = topicId;
   console.log('Topic selected:', topicId);
+
+  // Track this category as recently used
+  const selectedOption = event.target.options[event.target.selectedIndex];
+  const categoryName = selectedOption.textContent;
+  addRecentCategory(parseInt(topicId), categoryName);
 }
 
 // Get the selected category ID (now comes directly from API)
@@ -571,11 +655,11 @@ function handleNotificationClick() {
 
   if (chrome?.tabs?.create) {
     chrome.tabs.create({
-      url: 'http://localhost:5177/notification'
+      url: 'https://copus.network/notification'
     });
   } else {
     // Fallback - open in same window
-    window.open('http://localhost:5177/notification', '_blank');
+    window.open('https://copus.network/notification', '_blank');
   }
 
   // Close the popup after opening notifications page
@@ -762,11 +846,11 @@ function updateUserAvatar(user) {
       console.log('[Copus Extension] Redirecting to My treasury page');
       if (chrome?.tabs?.create) {
         chrome.tabs.create({
-          url: 'http://localhost:5177/my-treasury'
+          url: 'https://copus.network/my-treasury'
         });
       } else {
         // Fallback - open in same window
-        window.open('http://localhost:5177/my-treasury', '_blank');
+        window.open('https://copus.network/my-treasury', '_blank');
       }
     };
   }
@@ -777,7 +861,7 @@ function handleLogin() {
 
   // Open the Copus login page in a new tab
   chrome.tabs.create({
-    url: 'http://localhost:5177/login' // Point to the development server
+    url: 'https://copus.network/login'
   }, (tab) => {
     console.log('[Copus Extension] Opened login tab:', tab.id);
   });
@@ -952,10 +1036,13 @@ function populateTopicSelect(categories) {
     return;
   }
 
+  // Sort categories to show recently used ones first
+  const sortedCategories = sortCategoriesByRecent(categories);
+
   // Clear existing options and add placeholder
   elements.topicSelect.innerHTML = '<option value="" disabled selected>Select a topic...</option>';
 
-  categories.forEach((category) => {
+  sortedCategories.forEach((category) => {
     const option = document.createElement('option');
     option.value = category.id || category.value || '';
     option.textContent = category.name || category.label || 'Unnamed category';
@@ -963,7 +1050,7 @@ function populateTopicSelect(categories) {
     console.log('[Copus Extension] Added category:', category.name, 'with ID:', option.value);
   });
 
-  console.log('[Copus Extension] Successfully populated', categories.length, 'categories');
+  console.log('[Copus Extension] Successfully populated', sortedCategories.length, 'categories (sorted by recent usage)');
 }
 
 function validateForm() {
