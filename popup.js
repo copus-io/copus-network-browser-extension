@@ -668,10 +668,9 @@ function handleNotificationClick() {
 
 // Helper function to get the API base URL
 function getApiBaseUrl() {
-  // For now, always use the production/test API
-  // This ensures the extension works even if local backend isn't running
-  // TODO: Add automatic detection of local vs production environment
-  return 'https://api-test.copus.network';
+  // Use production API to match the main site (copus.network)
+  // This ensures the extension works with the same backend as the main site
+  return 'https://api-prod.copus.network';
 }
 
 // Authentication functions

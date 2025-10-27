@@ -58,7 +58,7 @@ let authCheckDebounceTimer = null;
 // Function to check for authentication token in localStorage
 async function checkForAuthToken(force = false) {
   // Check for Copus domains including localhost development server
-  const allowedDomains = ['copus.ai', 'www.copus.ai', 'copus.network', 'api-test.copus.network', 'localhost', '127.0.0.1'];
+  const allowedDomains = ['copus.ai', 'www.copus.ai', 'copus.network', 'www.copus.network', 'api-prod.copus.network', 'localhost', '127.0.0.1'];
   const currentDomain = window.location.hostname;
   const currentPort = window.location.port;
 
@@ -99,8 +99,8 @@ async function checkForAuthToken(force = false) {
         console.log('[Copus Extension] Found valid JWT token in localStorage');
 
         try {
-          // Use the plugin-specific userInfo endpoint
-          const apiUrl = 'https://api-test.copus.network/plugin/plugin/user/userInfo';
+          // Use the plugin-specific userInfo endpoint (production API)
+          const apiUrl = 'https://api-prod.copus.network/plugin/plugin/user/userInfo';
 
           // Validate token with API endpoint
           console.log('[Copus Extension] Validating token with API:', apiUrl);
