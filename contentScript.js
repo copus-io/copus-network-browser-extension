@@ -1,3 +1,8 @@
+// Inject marker IMMEDIATELY to indicate extension is installed
+// This MUST run before any other code to ensure the main site can detect it
+document.documentElement.setAttribute('data-copus-extension-installed', 'true');
+console.log('[Copus Extension] Injected extension marker into DOM at:', window.location.href);
+
 function getAbsoluteUrl(url) {
   try {
     return new URL(url, window.location.href).href;
@@ -180,11 +185,6 @@ function debouncedAuthCheck(delay = 1000) {
 
 // Check for token on page load and when localStorage changes
 console.log('[Copus Extension] Content script loaded on:', window.location.href);
-
-// Inject marker to indicate extension is installed
-// This allows the main site to detect the extension and hide the install button
-document.documentElement.setAttribute('data-copus-extension-installed', 'true');
-console.log('[Copus Extension] Injected extension marker into DOM');
 
 setTimeout(() => checkForAuthToken(false), 1000); // Delay to ensure page is fully loaded
 
