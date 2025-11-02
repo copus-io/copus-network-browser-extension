@@ -104,10 +104,12 @@ async function checkForAuthToken(force = false) {
         console.log('[Copus Extension] Found valid JWT token in localStorage');
 
         try {
-          // Use the plugin-specific userInfo endpoint (production API)
-          const apiUrl = 'https://api-prod.copus.network/plugin/plugin/user/userInfo';
+          // Detect environment and use appropriate API
+          const isTestEnv = currentDomain.includes('test') || isLocalDev;
+          const apiBaseUrl = isTestEnv ? 'https://api-test.copus.network' : 'https://api-prod.copus.network';
+          const apiUrl = `${apiBaseUrl}/plugin/plugin/user/userInfo`;
 
-          // Validate token with API endpoint
+          console.log('[Copus Extension] Detected environment:', isTestEnv ? 'TEST' : 'PRODUCTION');
           console.log('[Copus Extension] Validating token with API:', apiUrl);
           const response = await fetch(apiUrl, {
             method: 'GET',
