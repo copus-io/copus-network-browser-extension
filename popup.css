@@ -466,7 +466,7 @@ input, select, textarea {
 /* Action Buttons */
 .action-buttons {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 0;
   padding-top: 0;
