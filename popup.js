@@ -13,7 +13,10 @@ const state = {
   authToken: null,
   userInfo: null,
   isLoggedIn: false,
-  selectedTopic: 'life' // Default to life topic
+  selectedTopic: 'life', // Default to life topic
+  // x402 payment state
+  payToVisit: false, // Payment toggle (default off)
+  paymentAmount: '0.001' // Default payment amount in USDC
 };
 
 const elements = {};
@@ -160,6 +163,12 @@ function cacheElements() {
   elements.notificationBell = document.getElementById('notification-bell');
   elements.notificationBadge = document.getElementById('notification-badge');
   elements.notificationCount = document.getElementById('notification-count');
+
+  // x402 Payment elements
+  elements.payToVisitToggle = document.getElementById('pay-to-visit-toggle');
+  elements.paymentDetails = document.getElementById('payment-details');
+  elements.paymentAmount = document.getElementById('payment-amount');
+  elements.estimatedIncome = document.getElementById('estimated-income');
 }
 
 function showToast(message, type = 'success') {
@@ -655,11 +664,11 @@ function handleNotificationClick() {
 
   if (chrome?.tabs?.create) {
     chrome.tabs.create({
-      url: 'https://copus.network/notification'
+      url: 'https://test.copus.network/notification'
     });
   } else {
     // Fallback - open in same window
-    window.open('https://copus.network/notification', '_blank');
+    window.open('https://test.copus.network/notification', '_blank');
   }
 
   // Close the popup after opening notifications page
@@ -668,9 +677,9 @@ function handleNotificationClick() {
 
 // Helper function to get the API base URL
 function getApiBaseUrl() {
-  // Use production API to match the main site (copus.network)
-  // This ensures the extension works with the same backend as the main site
-  return 'https://api-prod.copus.network';
+  // Use test API for development and testing
+  // Change to 'https://api-prod.copus.network' for production
+  return 'https://api-test.copus.network';
 }
 
 // Authentication functions
@@ -845,11 +854,11 @@ function updateUserAvatar(user) {
       console.log('[Copus Extension] Redirecting to My treasury page');
       if (chrome?.tabs?.create) {
         chrome.tabs.create({
-          url: 'https://copus.network/my-treasury'
+          url: 'https://test.copus.network/my-treasury'
         });
       } else {
         // Fallback - open in same window
-        window.open('https://copus.network/my-treasury', '_blank');
+        window.open('https://test.copus.network/my-treasury', '_blank');
       }
     };
   }
@@ -858,9 +867,9 @@ function updateUserAvatar(user) {
 function handleLogin() {
   console.log('[Copus Extension] Handling login click');
 
-  // Open the Copus login page in a new tab
+  // Open the Copus login page in a new tab (test environment)
   chrome.tabs.create({
-    url: 'https://copus.network/login'
+    url: 'https://test.copus.network/login'
   }, (tab) => {
     console.log('[Copus Extension] Opened login tab:', tab.id);
   });
@@ -1052,6 +1061,61 @@ function populateTopicSelect(categories) {
   console.log('[Copus Extension] Successfully populated', sortedCategories.length, 'categories (sorted by recent usage)');
 }
 
+// ========== x402 Payment Functions ==========
+
+/**
+ * Handle payment toggle switch
+ */
+function handlePaymentToggle(event) {
+  const isEnabled = event.target.checked;
+  state.payToVisit = isEnabled;
+
+  console.log('[Payment] Toggle changed:', isEnabled);
+
+  // Show/hide payment details
+  if (elements.paymentDetails) {
+    elements.paymentDetails.style.display = isEnabled ? 'flex' : 'none';
+  }
+
+  // Update estimated income if enabled
+  if (isEnabled) {
+    updateEstimatedIncome();
+  }
+}
+
+/**
+ * Handle payment amount input changes
+ */
+function handlePaymentAmountChange(event) {
+  const amount = event.target.value;
+  state.paymentAmount = amount;
+
+  console.log('[Payment] Amount changed:', amount);
+
+  // Update estimated income display
+  updateEstimatedIncome();
+}
+
+/**
+ * Calculate and update estimated income display
+ * Based on platform fee structure (60% to creator, 40% platform fee)
+ */
+function updateEstimatedIncome() {
+  if (!elements.estimatedIncome) return;
+
+  const amount = parseFloat(state.paymentAmount) || 0;
+
+  // Platform takes 40% fee, creator gets 60%
+  const creatorShare = amount * 0.6;
+
+  // Format to 4 decimal places
+  const formattedIncome = creatorShare.toFixed(4);
+
+  elements.estimatedIncome.textContent = `${formattedIncome} per unlock`;
+
+  console.log('[Payment] Estimated income updated:', formattedIncome);
+}
+
 function validateForm() {
   if (!state.isLoggedIn) {
     setStatus('Please wait while logging in...', 'error');
@@ -1078,6 +1142,15 @@ function validateForm() {
     return false;
   }
 
+  // Validate payment amount if payment is enabled
+  if (state.payToVisit) {
+    const amount = parseFloat(state.paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setStatus('Please enter a valid payment amount greater than 0.', 'error');
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1086,7 +1159,8 @@ async function publishToCopus(payload) {
   console.log('Payload received:', payload);
 
   const apiBaseUrl = getApiBaseUrl();
-  const endpoint = `${apiBaseUrl}/plugin/plugin/author/article/edit`;
+  // Use same endpoint as mainsite for consistency and full feature support (including x402 payment)
+  const endpoint = `${apiBaseUrl}/client/author/article/edit`;
   console.log('Using endpoint:', endpoint);
 
   let response;
@@ -1286,6 +1360,20 @@ async function handlePublish() {
       title: elements.pageTitleInput.value.trim() || state.pageTitle
     };
 
+    // Add x402 payment fields if payment is enabled
+    // IMPORTANT: Format must match mainsite Create.tsx exactly
+    if (state.payToVisit) {
+      payload.targetUrlIsLocked = true;
+      payload.priceInfo = {
+        chainId: "84532", // Base Sepolia chain ID as STRING (mainnet would be "8453")
+        currency: "USDC", // Currency symbol, not contract address
+        price: parseFloat(state.paymentAmount || "0") // Parse as float
+      };
+      console.log('[Payment] Added payment info to payload:', payload.priceInfo);
+    } else {
+      payload.targetUrlIsLocked = false;
+    }
+
     console.log('📝 Final payload with S3 URL:', payload);
     console.log('🚀 About to call publishToCopus function...');
     // No status message needed while publishing
@@ -1323,7 +1411,9 @@ async function handlePublish() {
       if (articleUuid) {
         // Open the work page in a new window after a short delay
         setTimeout(() => {
-          const workUrl = `http://localhost:5177/work/${articleUuid}`;
+          // Use test site URL to match the API environment (test.copus.network)
+          // Change to 'https://copus.network' for production
+          const workUrl = `https://test.copus.network/work/${articleUuid}`;
           console.log('✅ Opening work page in new window:', workUrl);
 
           if (chrome?.tabs?.create) {
@@ -1732,6 +1822,15 @@ async function initialize() {
   if (elements.notificationBell) {
     elements.notificationBell.addEventListener('click', handleNotificationClick);
   }
+
+  // Add x402 payment event listeners
+  if (elements.payToVisitToggle) {
+    elements.payToVisitToggle.addEventListener('change', handlePaymentToggle);
+  }
+  if (elements.paymentAmount) {
+    elements.paymentAmount.addEventListener('input', handlePaymentAmountChange);
+  }
+
   console.timeEnd('add_event_listeners');
 
   console.time('update_character_count');
