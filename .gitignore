@@ -1,0 +1,75 @@
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Development Files
+.claude/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build & Distribution
+dist/
+build/
+*.crx
+*.pem
+*.zip
+
+# Test Files
+test.html
+debug.html
+*.test.js
+coverage/
+
+# Temporary Files
+*.tmp
+*.temp
+*.log
+.cache/
+
+# Environment Files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Package Manager
+package-lock.json
+yarn.lock
+
+# UI Development Files
+UI/
+
+# Private Keys & Secrets
+*.key
+*.pem
+secrets/
+credentials/
+
+# Chrome Extension Specific
+web-ext-artifacts/
+.web-extension-id
+
+# Backup Files
+*.backup
+*.bak
+*~
