@@ -664,11 +664,11 @@ function handleNotificationClick() {
 
   if (chrome?.tabs?.create) {
     chrome.tabs.create({
-      url: 'https://test.copus.network/notification'
+      url: 'https://copus.network/notification'
     });
   } else {
     // Fallback - open in same window
-    window.open('https://test.copus.network/notification', '_blank');
+    window.open('https://copus.network/notification', '_blank');
   }
 
   // Close the popup after opening notifications page
@@ -677,9 +677,8 @@ function handleNotificationClick() {
 
 // Helper function to get the API base URL
 function getApiBaseUrl() {
-  // Use test API for development and testing
-  // Change to 'https://api-prod.copus.network' for production
-  return 'https://api-test.copus.network';
+  // Production API
+  return 'https://api-prod.copus.network';
 }
 
 // Authentication functions
@@ -854,11 +853,11 @@ function updateUserAvatar(user) {
       console.log('[Copus Extension] Redirecting to My treasury page');
       if (chrome?.tabs?.create) {
         chrome.tabs.create({
-          url: 'https://test.copus.network/my-treasury'
+          url: 'https://copus.network/my-treasury'
         });
       } else {
         // Fallback - open in same window
-        window.open('https://test.copus.network/my-treasury', '_blank');
+        window.open('https://copus.network/my-treasury', '_blank');
       }
     };
   }
@@ -867,9 +866,9 @@ function updateUserAvatar(user) {
 function handleLogin() {
   console.log('[Copus Extension] Handling login click');
 
-  // Open the Copus login page in a new tab (test environment)
+  // Open the Copus login page in a new tab
   chrome.tabs.create({
-    url: 'https://test.copus.network/login'
+    url: 'https://copus.network/login'
   }, (tab) => {
     console.log('[Copus Extension] Opened login tab:', tab.id);
   });
@@ -1411,9 +1410,8 @@ async function handlePublish() {
       if (articleUuid) {
         // Open the work page in a new window after a short delay
         setTimeout(() => {
-          // Use test site URL to match the API environment (test.copus.network)
-          // Change to 'https://copus.network' for production
-          const workUrl = `https://test.copus.network/work/${articleUuid}`;
+          // Production site URL
+          const workUrl = `https://copus.network/work/${articleUuid}`;
           console.log('✅ Opening work page in new window:', workUrl);
 
           if (chrome?.tabs?.create) {
