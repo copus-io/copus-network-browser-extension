@@ -130,11 +130,19 @@ async function checkForAuthToken(force = false) {
             lastValidationTime = Date.now();
             lastValidatedToken = token;
 
-            // Store both token and user data in extension storage
+            // Store token, user data, AND the domain where user is logged in
+            // This ensures we redirect to the correct domain after publishing
+            const loginDomain = window.location.hostname;
+            const loginPort = window.location.port;
+            const loginOrigin = loginPort ? `${loginDomain}:${loginPort}` : loginDomain;
+
+            console.log('[Copus Extension] Storing auth data with login origin:', loginOrigin);
+
             chrome.runtime.sendMessage({
               type: 'storeAuthData',
               token: token,
-              user: userInfo.data
+              user: userInfo.data,
+              loginOrigin: loginOrigin // Store the domain where user is logged in
             }, (response) => {
               console.log('[Copus Extension] Auth data stored in extension');
             });

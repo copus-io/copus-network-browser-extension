@@ -32,11 +32,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'storeAuthData') {
-    // Store both token and user data in extension storage
-    chrome.storage.local.set({
+    // Store token, user data, and login origin in extension storage
+    const dataToStore = {
       'copus_token': message.token,
       'copus_user': message.user
-    }, () => {
+    };
+
+    // Store login origin if provided (domain where user is logged in)
+    if (message.loginOrigin) {
+      dataToStore['copus_login_origin'] = message.loginOrigin;
+      console.log('[Copus Extension] Storing login origin:', message.loginOrigin);
+    }
+
+    chrome.storage.local.set(dataToStore, () => {
       console.log('[Copus Extension] Auth data stored successfully');
     });
 
@@ -44,8 +52,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'clearAuthToken') {
-    // Clear the authentication token and user data from extension storage
-    chrome.storage.local.remove(['copus_token', 'copus_user'], () => {
+    // Clear the authentication token, user data, and login origin from extension storage
+    chrome.storage.local.remove(['copus_token', 'copus_user', 'copus_login_origin'], () => {
       console.log('[Copus Extension] Auth data cleared successfully');
     });
 

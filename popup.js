@@ -659,16 +659,34 @@ function updateNotificationBadge(count) {
   }
 }
 
-function handleNotificationClick() {
+async function handleNotificationClick() {
   console.log('[Copus Extension] Notification bell clicked, redirecting to notifications page');
+
+  // Get the login origin to redirect to the correct domain
+  let loginOrigin = 'copus.network'; // Default to production
+
+  try {
+    if (chrome?.storage?.local) {
+      const result = await chrome.storage.local.get(['copus_login_origin']);
+      if (result.copus_login_origin) {
+        loginOrigin = result.copus_login_origin;
+        console.log('[Copus Extension] Using stored login origin for notifications:', loginOrigin);
+      }
+    }
+  } catch (error) {
+    console.warn('[Copus Extension] Could not get login origin, using default:', error);
+  }
+
+  const protocol = loginOrigin.includes('localhost') || loginOrigin.includes('127.0.0.1') ? 'http' : 'https';
+  const notificationUrl = `${protocol}://${loginOrigin}/notification`;
 
   if (chrome?.tabs?.create) {
     chrome.tabs.create({
-      url: 'https://copus.network/notification'
+      url: notificationUrl
     });
   } else {
     // Fallback - open in same window
-    window.open('https://copus.network/notification', '_blank');
+    window.open(notificationUrl, '_blank');
   }
 
   // Close the popup after opening notifications page
@@ -849,15 +867,34 @@ function updateUserAvatar(user) {
     avatarElement.onclick = null;
 
     // Add new click handler
-    avatarElement.onclick = function() {
+    avatarElement.onclick = async function() {
       console.log('[Copus Extension] Redirecting to My treasury page');
+
+      // Get the login origin to redirect to the correct domain
+      let loginOrigin = 'copus.network'; // Default to production
+
+      try {
+        if (chrome?.storage?.local) {
+          const result = await chrome.storage.local.get(['copus_login_origin']);
+          if (result.copus_login_origin) {
+            loginOrigin = result.copus_login_origin;
+            console.log('[Copus Extension] Using stored login origin for My treasury:', loginOrigin);
+          }
+        }
+      } catch (error) {
+        console.warn('[Copus Extension] Could not get login origin, using default:', error);
+      }
+
+      const protocol = loginOrigin.includes('localhost') || loginOrigin.includes('127.0.0.1') ? 'http' : 'https';
+      const treasuryUrl = `${protocol}://${loginOrigin}/my-treasury`;
+
       if (chrome?.tabs?.create) {
         chrome.tabs.create({
-          url: 'https://copus.network/my-treasury'
+          url: treasuryUrl
         });
       } else {
         // Fallback - open in same window
-        window.open('https://copus.network/my-treasury', '_blank');
+        window.open(treasuryUrl, '_blank');
       }
     };
   }
@@ -1421,9 +1458,26 @@ async function handlePublish() {
 
       if (articleUuid) {
         // Open the work page in a new window after a short delay
-        setTimeout(() => {
-          // Production site URL
-          const workUrl = `https://copus.network/work/${articleUuid}`;
+        setTimeout(async () => {
+          // Get the login origin to redirect to the correct domain
+          let loginOrigin = 'copus.network'; // Default to production
+
+          try {
+            if (chrome?.storage?.local) {
+              const result = await chrome.storage.local.get(['copus_login_origin']);
+              if (result.copus_login_origin) {
+                loginOrigin = result.copus_login_origin;
+                console.log('✅ Using stored login origin:', loginOrigin);
+              }
+            }
+          } catch (error) {
+            console.warn('Could not get login origin, using default:', error);
+          }
+
+          // Construct work URL using the domain where user is logged in
+          // This ensures token is available in localStorage of the opened page
+          const protocol = loginOrigin.includes('localhost') || loginOrigin.includes('127.0.0.1') ? 'http' : 'https';
+          const workUrl = `${protocol}://${loginOrigin}/work/${articleUuid}`;
           console.log('✅ Opening work page in new window:', workUrl);
 
           if (chrome?.tabs?.create) {
