@@ -79,8 +79,9 @@ async function checkForAuthToken(force = false) {
     console.log('[Copus Extension] Checking auth token on:', `${currentDomain}:${currentPort}`);
 
     // Check for the correct token storage key from main site
-    const token = localStorage.getItem('copus_token');
-    const userData = localStorage.getItem('copus_user');
+    // Check both localStorage and sessionStorage for cross-tab compatibility
+    const token = localStorage.getItem('copus_token') || sessionStorage.getItem('copus_token');
+    const userData = localStorage.getItem('copus_user') || sessionStorage.getItem('copus_user');
 
     console.log('[Copus Extension] Token found:', token ? `${token.substring(0, 20)}...` : 'None');
     console.log('[Copus Extension] User data found:', userData ? 'Yes' : 'No');
@@ -191,23 +192,46 @@ console.log('[Copus Extension] Content script loaded on:', window.location.href)
 setTimeout(() => checkForAuthToken(false), 1000); // Delay to ensure page is fully loaded
 
 // Monitor localStorage changes for auth token
-const originalSetItem = localStorage.setItem;
-const originalRemoveItem = localStorage.removeItem;
+const originalLocalSetItem = localStorage.setItem;
+const originalLocalRemoveItem = localStorage.removeItem;
+const originalSessionSetItem = sessionStorage.setItem;
+const originalSessionRemoveItem = sessionStorage.removeItem;
 
 localStorage.setItem = function(key, value) {
-  originalSetItem.apply(this, arguments);
+  originalLocalSetItem.apply(this, arguments);
   if (key === 'copus_token') {
-    console.log('[Copus Extension] copus_token stored, debouncing auth check...');
+    console.log('[Copus Extension] copus_token stored in localStorage, debouncing auth check...');
     // Use debounced check to prevent rapid successive calls
     debouncedAuthCheck(2000); // 2 second debounce
   }
 };
 
 localStorage.removeItem = function(key) {
-  originalRemoveItem.apply(this, arguments);
+  originalLocalRemoveItem.apply(this, arguments);
   if (key === 'copus_token') {
-    console.log('[Copus Extension] copus_token removed, clearing extension storage...');
+    console.log('[Copus Extension] copus_token removed from localStorage, clearing extension storage...');
     // Clear cache when token is removed
+    lastValidationTime = 0;
+    lastValidatedToken = null;
+    chrome.runtime.sendMessage({
+      type: 'clearAuthToken'
+    });
+  }
+};
+
+// Also monitor sessionStorage for cross-tab token persistence
+sessionStorage.setItem = function(key, value) {
+  originalSessionSetItem.apply(this, arguments);
+  if (key === 'copus_token') {
+    console.log('[Copus Extension] copus_token stored in sessionStorage, debouncing auth check...');
+    debouncedAuthCheck(2000); // 2 second debounce
+  }
+};
+
+sessionStorage.removeItem = function(key) {
+  originalSessionRemoveItem.apply(this, arguments);
+  if (key === 'copus_token') {
+    console.log('[Copus Extension] copus_token removed from sessionStorage, clearing extension storage...');
     lastValidationTime = 0;
     lastValidatedToken = null;
     chrome.runtime.sendMessage({
