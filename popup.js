@@ -899,6 +899,12 @@ async function validateUserInBackground() {
     console.log('[Copus Extension] Could not message content scripts:', error);
   }
 
+  // Wait for content script to detect and store token
+  // This prevents race condition where popup checks chrome.storage
+  // before contentScript has had time to detect token from page's localStorage
+  console.log('[Copus Extension] Waiting 800ms for content script to detect token...');
+  await new Promise(resolve => setTimeout(resolve, 800));
+
   // Check authentication status
   const authResult = await checkAuthentication();
 
@@ -948,6 +954,12 @@ async function loginUser() {
   } catch (error) {
     console.log('[Copus Extension] Could not message content scripts:', error);
   }
+
+  // Wait for content script to detect and store token
+  // This prevents race condition where popup checks chrome.storage
+  // before contentScript has had time to detect token from page's localStorage
+  console.log('[Copus Extension] Waiting 800ms for content script to detect token...');
+  await new Promise(resolve => setTimeout(resolve, 800));
 
   // Check authentication status
   const authResult = await checkAuthentication();
