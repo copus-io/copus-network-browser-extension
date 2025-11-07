@@ -939,8 +939,8 @@ async function validateUserInBackground() {
   // Wait for content script to detect and store token
   // This prevents race condition where popup checks chrome.storage
   // before contentScript has had time to detect token from page's localStorage
-  console.log('[Copus Extension] Waiting 800ms for content script to detect token...');
-  await new Promise(resolve => setTimeout(resolve, 800));
+  console.log('[Copus Extension] Waiting 1200ms for content script to detect token...');
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
   // Check authentication status
   const authResult = await checkAuthentication();
@@ -955,7 +955,19 @@ async function validateUserInBackground() {
   }
 
   console.log('[Copus Extension] Background validation: User authenticated');
-  // Update user info if we're showing the main app
+
+  // If showing login screen but user is authenticated, switch to main app
+  if (elements.loginScreen.style.display !== 'none') {
+    console.log('[Copus Extension] Switching from login screen to main app');
+    showMainApp(authResult.user);
+
+    // Fetch data for authenticated user
+    fetchUnreadNotificationCount();
+    fetchCategories();
+    return; // Exit early since showMainApp already sets everything up
+  }
+
+  // Update user info if we're already showing the main app
   if (elements.mainContainer.style.display === 'flex') {
     state.isLoggedIn = true;
     state.userInfo = authResult.user;
@@ -995,8 +1007,8 @@ async function loginUser() {
   // Wait for content script to detect and store token
   // This prevents race condition where popup checks chrome.storage
   // before contentScript has had time to detect token from page's localStorage
-  console.log('[Copus Extension] Waiting 800ms for content script to detect token...');
-  await new Promise(resolve => setTimeout(resolve, 800));
+  console.log('[Copus Extension] Waiting 1200ms for content script to detect token...');
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
   // Check authentication status
   const authResult = await checkAuthentication();
