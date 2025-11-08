@@ -1371,8 +1371,12 @@ async function handlePublish() {
       </div>
     `;
 
-    // Load page data now if not already loaded (for auto cover image detection)
-    if (!state.images || state.images.length === 0) {
+    // Load page data ONLY if user hasn't manually set a cover image
+    // This prevents auto-detection from clearing user's uploaded/captured image
+    const hasManualCover = state.coverImage && state.coverImage.src &&
+                          (state.coverSourceType === 'upload' || state.coverSourceType === 'screenshot');
+
+    if (!hasManualCover && (!state.images || state.images.length === 0)) {
       // No status message needed while detecting page images
       try {
         await loadPageData(state.activeTabId);
@@ -1387,6 +1391,8 @@ async function handlePublish() {
         // Continue without page images if detection fails
         console.log('Page image detection failed, continuing with manual cover selection');
       }
+    } else if (hasManualCover) {
+      console.log('[handlePublish] Skipping loadPageData - user has manually set cover image');
     }
 
     // No status message needed while uploading
