@@ -203,9 +203,22 @@ function setStatus(message, type = 'info') {
 }
 
 function setCoverImage(coverImage, sourceType, originalFile = null) {
+  console.log('[setCoverImage] Called with:', {
+    hasCoverImage: !!coverImage,
+    hasSrc: coverImage?.src ? 'yes' : 'no',
+    sourceType,
+    hasOriginalFile: !!originalFile
+  });
+
   state.coverImage = coverImage;
   state.coverSourceType = sourceType;
   state.coverImageFile = originalFile; // Store original file for upload
+
+  console.log('[setCoverImage] State updated:', {
+    hasCoverImage: !!state.coverImage,
+    coverSourceType: state.coverSourceType,
+    hasCoverImageFile: !!state.coverImageFile
+  });
 
   if (coverImage && coverImage.src) {
     elements.coverPreview.src = coverImage.src;
@@ -1187,7 +1200,13 @@ function validateForm() {
     return false;
   }
 
+  console.log('[validateForm] Checking cover image:', {
+    hasCoverImage: !!state.coverImage,
+    hasSrc: !!state.coverImage?.src
+  });
+
   if (!state.coverImage || !state.coverImage.src) {
+    console.error('[validateForm] Cover image validation failed');
     setStatus('Cover image is required.', 'error');
     return false;
   }
@@ -1376,25 +1395,38 @@ async function handlePublish() {
     let fileToUpload;
 
     // Determine how to handle the cover image based on source type
+    console.log('[handlePublish] Cover image state check:', {
+      coverSourceType: state.coverSourceType,
+      hasCoverImage: !!state.coverImage,
+      hasCoverImageSrc: !!state.coverImage?.src,
+      hasCoverImageFile: !!state.coverImageFile
+    });
+
     if (state.coverSourceType === 'upload' && state.coverImageFile) {
       // Use original file for uploads
       fileToUpload = state.coverImageFile;
-      console.log('Using original uploaded file for S3 upload');
+      console.log('[handlePublish] Using original uploaded file for S3 upload');
     } else if (state.coverImage && state.coverImage.src) {
       // Convert screenshot or detected image to file
       const fileName = state.coverSourceType === 'screenshot'
         ? 'screenshot.png'
         : 'detected-image.jpg';
 
-      console.log('Converting', state.coverSourceType, 'image to file for S3 upload');
+      console.log('[handlePublish] Converting', state.coverSourceType, 'image to file for S3 upload');
 
       try {
         fileToUpload = await convertImageToFile(state.coverImage.src, fileName);
       } catch (convertError) {
-        console.error('Image conversion failed:', convertError);
+        console.error('[handlePublish] Image conversion failed:', convertError);
         throw new Error('Image processing failed: ' + convertError.message);
       }
     } else {
+      console.error('[handlePublish] No cover image available! State:', {
+        coverSourceType: state.coverSourceType,
+        hasCoverImage: !!state.coverImage,
+        hasCoverImageSrc: !!state.coverImage?.src,
+        hasCoverImageFile: !!state.coverImageFile
+      });
       throw new Error('No cover image available');
     }
 
@@ -1793,9 +1825,12 @@ function handleFileUpload(event) {
 
   // Show cropper instead of directly setting image
   imageCropper.show(file, (croppedFile) => {
+    console.log('[handleFileUpload] Cropper returned file:', croppedFile);
     const reader = new FileReader();
     reader.onload = () => {
+      console.log('[handleFileUpload] FileReader loaded, setting cover image');
       setCoverImage({ src: reader.result }, 'upload', croppedFile);
+      console.log('[handleFileUpload] Cover image set from upload');
     };
     reader.readAsDataURL(croppedFile);
   });
@@ -1834,7 +1869,9 @@ async function handleScreenshotCapture() {
       );
     });
 
+    console.log('[handleScreenshotCapture] Setting screenshot as cover image');
     setCoverImage({ src: screenshot }, 'screenshot');
+    console.log('[handleScreenshotCapture] Screenshot set successfully');
     // No status message needed for screenshot success
   } catch (error) {
     setStatus('Unable to capture screenshot: ' + error.message, 'error');
