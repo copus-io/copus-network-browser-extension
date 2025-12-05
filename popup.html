@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copus Publisher</title>
+    <style>
+      /* Critical CSS inlined for faster loading */
+      body { width: 360px; height: 580px; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; color: #1a1a1a; overflow: hidden; }
+      .compact-container { width: 100%; height: 100%; display: flex; flex-direction: column; background: #f8f9fa; }
+    </style>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen" style="display: none;">
+      <div class="login-container">
+        <div class="login-content">
+          <div class="login-text">
+            <h1 class="login-title">Please log in to start!</h1>
+            <p class="login-subtitle">Discover and share internet gems</p>
+          </div>
+          <button id="login-button" class="login-button">
+            <span>Log in</span>
+          </button>
+        </div>
+        <div class="login-mascot">
+          <img src="https://c.animaapp.com/mg0kz9olCQ44yb/img/ic-fractopus-open.svg" alt="Copus Octopus" class="octopus-image" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Extension Content (shown when logged in) -->
+    <div id="main-container" class="compact-container" style="display: none;">
+      <!-- Header -->
+      <header class="compact-header">
+        <div class="brand">
+          <a href="https://copus.network/" target="_blank" class="logo-link">
+            <div class="logo">
+              <svg width="20" height="20" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="30" height="30" rx="15" fill="#F23A00"/>
+                <path d="M15.8975 5C16.5927 4.99742 16.9432 5.06308 17.5049 5.2998C18.0231 5.51823 18.3723 5.76429 18.8037 6.21582C19.4729 6.91628 19.8268 7.67954 19.9404 8.66406C20.0344 9.47896 19.8862 10.2536 19.3428 11.7793C19.1515 12.3164 18.9688 12.9074 18.9365 13.0928C18.8216 13.7532 19.0357 14.2181 19.5898 14.5098C20.1689 14.8146 20.8332 15.0153 21.4082 14.7266C21.8047 14.5274 21.9571 13.8716 22.1934 13C22.1934 12.0001 22.3793 11.3848 23.1016 11C23.8239 10.6152 24.9945 11.2777 25 12C25.0054 12.7223 24.4752 14.3995 23.6387 15C22.2458 15.9999 21.2031 16.3627 20.0684 16.4238C19.7604 16.4404 19.5141 16.4723 19.5215 16.4941C19.5639 16.6197 20.3337 17.4868 20.6221 17.7344C21.068 18.1171 21.4135 18.3388 22.3789 18.8604C22.8185 19.0978 23.3252 19.3964 23.5049 19.5234C23.9148 19.8132 24.3132 20.2492 24.4756 20.5869C24.9135 21.4976 24.5211 22.7095 23.6387 23.1729C23.3614 23.3183 22.9461 23.3466 22.752 23.2334C22.6416 23.1689 22.6438 23.1654 22.9121 23.0059C23.2917 22.7801 23.6247 22.4364 23.7725 22.1182C23.9276 21.7839 23.9203 21.3592 23.7549 21.1143C23.6121 20.903 23.1369 20.6528 22.1934 20.292C20.3378 19.5824 19.8205 19.2288 18.1055 17.4912C17.669 17.049 17.3027 16.6959 17.291 16.707C17.2799 16.7188 17.3915 17.0973 17.5391 17.5479C17.9339 18.7535 18.2609 19.4303 18.9014 20.3711C19.5971 21.393 19.7735 21.7009 19.918 22.1387C20.2116 23.0284 20.0718 23.824 19.5068 24.4756C19.0308 25.0244 18.4561 25.16 18.1367 24.7988C18.0004 24.6446 18.0121 24.6048 18.1924 24.6035C18.5488 24.6007 19.0075 24.2218 19.1309 23.8281C19.2755 23.3664 19.0227 22.6858 18.4561 22.0146C18.2653 21.7887 17.9419 21.4062 17.7373 21.165C17.0086 20.3059 16.4516 19.2641 15.9658 17.8477C15.8276 17.4448 15.705 17.1491 15.6934 17.1904C15.6816 17.2324 15.6244 17.5023 15.5664 17.791C15.3394 18.9211 14.9482 19.9421 14.4873 20.6045C14.3654 20.7796 13.9944 21.2499 13.6631 21.6494C13.3318 22.0489 12.9823 22.4962 12.8867 22.6436C12.7058 22.9223 12.5694 23.3179 12.5693 23.5635C12.5693 23.7693 12.6937 24.0533 12.8691 24.248C13.0161 24.411 13.5232 24.705 13.6572 24.7051C13.7107 24.7052 13.7109 24.7188 13.6602 24.7832C13.4797 25.0124 13.0936 25.068 12.8027 24.9062C12.3444 24.651 11.9117 23.8478 11.8311 23.1016C11.7547 22.3934 12.0836 21.5001 12.7227 20.6797C13.5297 19.6438 13.6636 19.3336 14.0156 17.6797C14.0844 17.3563 14.1551 17.0516 14.1729 17.0029C14.1903 16.9546 14.0029 17.1382 13.7559 17.4111C13.1633 18.0659 12.362 18.8238 11.9297 19.1387C11.4307 19.5021 10.8512 19.7908 9.9541 20.1211C9.5226 20.28 9.03171 20.475 8.86328 20.5547C7.54808 21.1769 7.54703 22.1224 8.86035 23.0518C8.95099 23.1159 9.03522 23.1772 9.04883 23.1885C9.10548 23.2364 8.90976 23.3011 8.70508 23.3018C8.11474 23.3035 7.4131 22.6145 7.21777 21.8418C7.12266 21.4653 7.13242 21.0127 7.24414 20.6396C7.48775 19.8266 8.15302 19.2333 9.3125 18.7939C9.84615 18.5917 10.569 18.2156 10.9619 17.9365C11.1265 17.8196 11.5361 17.4963 11.8711 17.2188L12.4795 16.7139L12.3223 16.6807C12.2355 16.6624 11.9857 16.6218 11.7666 16.5898C10.757 16.4427 10.1917 16.5896 8.32031 16C6.44901 15.4104 5.94824 14.5 5.94824 14.5C5.94269 14.4954 5 13.7155 5 12C5.00007 10.2796 7.00741 10.0817 7.37109 11C7.67957 11.7794 7.21835 12.5 7.21777 13C7.21726 13.5 7.3957 14.4527 8.05078 14.7266C8.70582 15.0002 9.74555 15 10.6943 15C11.4782 15 12.5037 14.6918 12.7158 13.8721C12.8467 13.3659 12.6671 12.3436 12.2207 11.0479C11.8663 10.0192 11.7851 9.62287 11.7891 8.94922C11.7931 8.26706 11.8864 7.84241 12.1641 7.24512C12.5376 6.44168 13.0857 5.88169 13.9004 5.4707C14.5578 5.13912 15.1353 5.00287 15.8975 5ZM14.877 11.5645C14.2001 11.5646 13.9601 12.2255 13.96 12.5078C13.96 12.9587 14.3868 13.4042 14.877 13.4043C15.4936 13.4043 15.7998 12.892 15.7998 12.5078C15.7997 12.1236 15.5038 11.5645 14.877 11.5645ZM23.5449 11.915C23.2771 11.915 23.0596 12.1446 23.0596 12.4268C23.0598 12.7088 23.2772 12.9375 23.5449 12.9375C23.8124 12.9372 24.0291 12.7086 24.0293 12.4268C24.0293 12.1447 23.8126 11.9153 23.5449 11.915ZM6.50098 10.9424C6.23313 10.9424 6.01563 11.1709 6.01562 11.4531C6.01562 11.7353 6.23313 11.9639 6.50098 11.9639C6.76866 11.9637 6.98535 11.7352 6.98535 11.4531C6.98534 11.1711 6.76865 10.9426 6.50098 10.9424ZM13.5674 9.43359C13.2997 9.4337 13.0831 9.66233 13.083 9.94434C13.083 10.2265 13.2996 10.455 13.5674 10.4551C13.8352 10.4551 14.0527 10.2265 14.0527 9.94434C14.0526 9.66227 13.8351 9.43359 13.5674 9.43359ZM16.4775 9.43359C16.2098 9.43359 15.9923 9.66227 15.9922 9.94434C15.9922 10.2265 16.2097 10.4551 16.4775 10.4551C16.7454 10.4551 16.9629 10.2265 16.9629 9.94434C16.9628 9.66228 16.7453 9.43362 16.4775 9.43359Z" fill="white"/>
+              </svg>
+            </div>
+          </a>
+        </div>
+        <div class="header-actions">
+          <!-- Notification Bell -->
+          <div id="notification-bell" class="notification-bell" title="Notifications">
+            <img
+              src="https://c.animaapp.com/mft4oqz6uyUKY7/img/notification.svg"
+              alt="Notification"
+              class="notification-icon"
+            />
+            <div id="notification-badge" class="notification-badge" style="display: none;">
+              <span id="notification-count">0</span>
+            </div>
+          </div>
+          <!-- Avatar -->
+          <div class="avatar">
+            <div style="width:25px;height:25px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#666;font-size:10px;">U</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="compact-main">
+        <!-- Link Section - Hidden -->
+        <section class="field-section" style="display: none;">
+          <label class="field-label">Link</label>
+          <div class="link-display" id="page-url-display">http://xxxxx.com</div>
+        </section>
+
+        <!-- Cover Section - Moved to top -->
+        <section class="field-section">
+          <label class="field-label">Cover</label>
+          <div id="cover-container" class="cover-area">
+            <div id="cover-empty" class="cover-empty">
+              <div class="cover-actions-compact">
+                <label class="upload-button" for="cover-upload">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 2V14M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  Upload from device
+                </label>
+                <input id="cover-upload" type="file" accept="image/*" hidden />
+
+                <div class="action-icons">
+                  <button id="cover-screenshot" class="icon-button" type="button" title="Capture screenshot">
+                    <svg width="20" height="20" viewBox="0 0 24 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M23.5 3.5778V13.4514C23.5 13.8104 23.3602 14.1547 23.1114 14.4086C22.8625 14.6625 22.525 14.8051 22.1731 14.8051C21.8212 14.8051 21.4836 14.6625 21.2348 14.4086C20.986 14.1547 20.8462 13.8104 20.8462 13.4514V3.5778C20.8462 3.52921 20.8368 3.48109 20.8185 3.4362C20.8003 3.3913 20.7736 3.35051 20.7399 3.31615C20.7062 3.28179 20.6663 3.25453 20.6223 3.23594C20.5783 3.21734 20.5311 3.20777 20.4835 3.20777H3.55192C3.50141 3.20272 3.45041 3.20854 3.40224 3.22486C3.35407 3.24118 3.30979 3.26763 3.27226 3.30251C3.23474 3.33739 3.20482 3.37991 3.18442 3.42733C3.16402 3.47475 3.1536 3.52602 3.15385 3.5778V13.4514C3.15385 13.8104 3.01405 14.1547 2.7652 14.4086C2.51635 14.6625 2.17884 14.8051 1.82692 14.8051C1.475 14.8051 1.13749 14.6625 0.888647 14.4086C0.6398 14.1547 0.5 13.8104 0.5 13.4514V3.5778C0.499973 3.17059 0.579154 2.76742 0.732958 2.39166C0.886761 2.0159 1.11213 1.67501 1.396 1.38875C1.67987 1.1025 2.0166 0.876559 2.38667 0.724036C2.75675 0.571513 3.15282 0.495435 3.55192 0.500212H20.4481C20.8472 0.495435 21.2432 0.571513 21.6133 0.724036C21.9834 0.876559 22.3201 1.1025 22.604 1.38875C22.8879 1.67501 23.1132 2.0159 23.267 2.39166C23.4208 2.76742 23.5 3.17059 23.5 3.5778ZM22.1819 17.621C23.0002 18.4985 23.4566 19.6634 23.4566 20.8746C23.4566 22.0858 23.0002 23.2507 22.1819 24.1282C21.7755 24.5626 21.2868 24.9082 20.7454 25.1441C20.204 25.3799 19.6213 25.501 19.0327 25.5C18.444 25.501 17.8613 25.3799 17.32 25.1441C16.7786 24.9082 16.2899 24.5626 15.8835 24.1282C15.2229 23.4166 14.7963 22.5125 14.6631 21.5418C14.5299 20.5712 14.6968 19.5824 15.1404 18.713L12 15.4008L8.85961 18.713C9.30194 19.5827 9.46804 20.5712 9.3349 21.5416C9.20175 22.5119 8.77594 23.4159 8.11654 24.1282C7.71012 24.5626 7.22139 24.9082 6.68002 25.1441C6.13866 25.3799 5.55595 25.501 4.96731 25.5C4.37866 25.501 3.79596 25.3799 3.25459 25.1441C2.71323 24.9082 2.22449 24.5626 1.81808 24.1282C0.999758 23.2507 0.543388 22.0858 0.543388 20.8746C0.543388 19.6634 0.999758 18.4985 1.81808 17.621C2.46858 16.9175 3.32916 16.4535 4.26539 16.3017C5.20163 16.1498 6.16079 16.3186 6.99308 16.7817L10.1512 13.4514L6.11731 9.19147C5.88529 8.93167 5.76141 8.58999 5.77185 8.23868C5.78229 7.88737 5.92624 7.55398 6.17325 7.309C6.42027 7.06401 6.75099 6.92664 7.09549 6.92593C7.43999 6.92523 7.77125 7.06124 8.01923 7.30521L12 11.5109L15.9808 7.31423C16.2274 7.06803 16.5584 6.92955 16.9035 6.92816C17.2485 6.92676 17.5806 7.06257 17.8291 7.30677C18.0777 7.55097 18.2232 7.88436 18.2349 8.23621C18.2465 8.58806 18.1234 8.93071 17.8915 9.19147L13.8488 13.4604L17.0069 16.7907C17.8392 16.3276 18.7984 16.1589 19.7346 16.3107C20.6708 16.4626 21.5314 16.9265 22.1819 17.63V17.621ZM6.20577 19.5073C6.04693 19.3346 5.85508 19.197 5.64207 19.1029C5.42907 19.0088 5.19942 18.9603 4.96731 18.9603C4.7352 18.9603 4.50555 19.0088 4.29254 19.1029C4.07953 19.197 3.88769 19.3346 3.72885 19.5073C3.39499 19.8758 3.20957 20.3592 3.20957 20.861C3.20957 21.3629 3.39499 21.8463 3.72885 22.2148C3.88769 22.3875 4.07953 22.5251 4.29254 22.6192C4.50555 22.7133 4.7352 22.7618 4.96731 22.7618C5.19942 22.7618 5.42907 22.7133 5.64207 22.6192C5.85508 22.5251 6.04693 22.3875 6.20577 22.2148C6.53963 21.8463 6.72505 21.3629 6.72505 20.861C6.72505 20.3592 6.53963 19.8758 6.20577 19.5073ZM20.2712 19.5073C20.1123 19.3346 19.9205 19.197 19.7075 19.1029C19.4944 19.0088 19.2648 18.9603 19.0327 18.9603C18.8006 18.9603 18.5709 19.0088 18.3579 19.1029C18.1449 19.197 17.9531 19.3346 17.7942 19.5073C17.4604 19.8758 17.275 20.3592 17.275 20.861C17.275 21.3629 17.4604 21.8463 17.7942 22.2148C17.9531 22.3875 18.1449 22.5251 18.3579 22.6192C18.5709 22.7133 18.8006 22.7618 19.0327 22.7618C19.2648 22.7618 19.4944 22.7133 19.7075 22.6192C19.9205 22.5251 20.1123 22.3875 20.2712 22.2148C20.605 21.8463 20.7904 21.3629 20.7904 20.861C20.7904 20.3592 20.605 19.8758 20.2712 19.5073Z" fill="currentColor"/>
+                    </svg>
+                    <span>Capture</span>
+                  </button>
+
+                  <button id="toggle-detected-images" class="icon-button" type="button" title="Detect images">
+                    <svg width="20" height="20" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12.9948 0.500006C10.5996 0.498025 8.25482 1.18784 6.24185 2.48663C6.0933 2.58469 5.98943 2.73746 5.95283 2.91173C5.91623 3.08601 5.94987 3.26769 6.04642 3.41729C6.14297 3.56688 6.29463 3.67229 6.46843 3.71059C6.64223 3.7489 6.82412 3.71701 6.97455 3.62185C8.57635 2.58919 10.4173 1.98755 12.3195 1.8751V7.6424C11.131 7.79321 10.0262 8.33508 9.1791 9.18276C8.33195 10.0305 7.79043 11.1359 7.63971 12.3252H1.87609C1.99486 10.3308 2.64799 8.40516 3.76691 6.75044L3.97287 8.20662C3.9958 8.36899 4.07696 8.51746 4.2012 8.62438C4.32544 8.7313 4.4843 8.78936 4.64816 8.78775H4.74608C4.92338 8.76263 5.08344 8.66808 5.19109 8.52489C5.29873 8.3817 5.34513 8.2016 5.32008 8.02418L4.89127 4.99356C4.86617 4.81615 4.77168 4.65598 4.62858 4.54827C4.48548 4.44057 4.30549 4.39414 4.12819 4.4192L1.10288 4.8449C0.923777 4.86955 0.761796 4.96437 0.652568 5.10852C0.543339 5.25266 0.49581 5.43433 0.520436 5.61354C0.545062 5.79275 0.639826 5.95484 0.783881 6.06413C0.927937 6.17343 1.10948 6.22099 1.28858 6.19635L2.63917 6.00377C1.02956 8.38917 0.291884 11.2573 0.550688 14.1239C0.809493 16.9904 2.04892 19.6798 4.05971 21.738C6.07049 23.7961 8.72944 25.0969 11.5876 25.4206C14.4457 25.7444 17.328 25.0714 19.7477 23.5151C19.8963 23.4171 20.0001 23.2643 20.0367 23.09C20.0733 22.9157 20.0397 22.7341 19.9431 22.5845C19.8466 22.4349 19.6949 22.3295 19.5211 22.2912C19.3473 22.2529 19.1654 22.2848 19.015 22.3799C17.4132 23.4126 15.5722 24.0142 13.6701 24.1267V18.3594C14.8586 18.2085 15.9633 17.6667 16.8105 16.819C17.6576 15.9713 18.1991 14.8659 18.3499 13.6766H24.1135C23.9947 15.671 23.3416 17.5966 22.2227 19.2513L22.0167 17.7951C21.9916 17.6159 21.8964 17.454 21.7521 17.345C21.6077 17.2361 21.426 17.1889 21.2469 17.214C21.0678 17.2391 20.906 17.3344 20.797 17.4788C20.6881 17.6233 20.641 17.8051 20.6661 17.9843L21.0949 21.0251C21.1179 21.1874 21.199 21.3359 21.3232 21.4428C21.4475 21.5498 21.6063 21.6078 21.7702 21.6062H21.8647L24.8799 21.1805C25.059 21.1559 25.221 21.061 25.3302 20.9169C25.4395 20.7727 25.487 20.5911 25.4624 20.4119C25.4377 20.2327 25.343 20.0706 25.1989 19.9613C25.0549 19.852 24.8733 19.8044 24.6942 19.8291L23.3436 20.0216C24.6191 18.1413 25.3583 15.9487 25.4816 13.6795C25.6049 11.4103 25.1076 9.1504 24.0434 7.14282C22.9791 5.13524 21.3881 3.45594 19.4414 2.2855C17.4946 1.11506 15.2659 0.497769 12.9948 0.500006ZM12.3195 24.1267C9.60389 23.9609 7.04272 22.8068 5.11894 20.8817C3.19515 18.9567 2.0417 16.3939 1.87609 13.6766H7.63971C7.79043 14.8659 8.33195 15.9713 9.1791 16.819C10.0262 17.6667 11.131 18.2085 12.3195 18.3594V24.1267ZM15.0207 13.6766H16.9858C16.845 14.5053 16.4503 15.2698 15.8563 15.8642C15.2623 16.4586 14.4983 16.8536 13.6701 16.9944V15.028C13.6701 14.8488 13.5989 14.677 13.4723 14.5502C13.3456 14.4235 13.1739 14.3523 12.9948 14.3523C12.8157 14.3523 12.6439 14.4235 12.5173 14.5502C12.3906 14.677 12.3195 14.8488 12.3195 15.028V16.9944C11.4913 16.8536 10.7273 16.4586 10.1333 15.8642C9.53924 15.2698 9.14454 14.5053 9.0038 13.6766H10.9689C11.148 13.6766 11.3198 13.6054 11.4464 13.4787C11.573 13.352 11.6442 13.1801 11.6442 13.0009C11.6442 12.8217 11.573 12.6498 11.4464 12.5231C11.3198 12.3963 11.148 12.3252 10.9689 12.3252H9.0038C9.14454 11.4964 9.53924 10.7319 10.1333 10.1375C10.7273 9.54314 11.4913 9.14819 12.3195 9.00736V10.9737C12.3195 11.1529 12.3906 11.3248 12.5173 11.4515C12.6439 11.5782 12.8157 11.6494 12.9948 11.6494C13.1739 11.6494 13.3456 11.5782 13.4723 11.4515C13.5989 11.3248 13.6701 11.1529 13.6701 10.9737V9.00736C14.4983 9.14819 15.2623 9.54314 15.8563 10.1375C16.4503 10.7319 16.845 11.4964 16.9858 12.3252H15.0207C14.8416 12.3252 14.6698 12.3963 14.5432 12.5231C14.4165 12.6498 14.3454 12.8217 14.3454 13.0009C14.3454 13.1801 14.4165 13.352 14.5432 13.4787C14.6698 13.6054 14.8416 13.6766 15.0207 13.6766ZM18.3499 12.3252C18.1991 11.1359 17.6576 10.0305 16.8105 9.18276C15.9633 8.33508 14.8586 7.79321 13.6701 7.6424V1.8751C16.3857 2.04082 18.9468 3.19501 20.8706 5.12002C22.7944 7.04503 23.9479 9.60783 24.1135 12.3252H18.3499Z" fill="currentColor"/>
+                    </svg>
+                    <span>Detect</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <img id="cover-preview" class="cover-preview" alt="Selected cover preview" hidden />
+            <button id="cover-remove" class="cover-remove" type="button" hidden>×</button>
+          </div>
+        </section>
+
+        <!-- Title Section -->
+        <section class="field-section">
+          <label class="field-label">Title</label>
+          <div class="textarea-wrapper">
+            <input id="page-title-input" class="field-input" type="text" value="AI Agents Problems No One Talks About" maxlength="75" required />
+            <div class="char-counter" id="title-char-counter">0/75</div>
+          </div>
+        </section>
+
+        <!-- Recommendation Section -->
+        <section class="field-section">
+          <label class="field-label">Recommendation</label>
+          <div class="textarea-wrapper">
+            <textarea id="recommendation-input" class="field-textarea" placeholder="What did you find valuable about this link?" maxlength="1000" required></textarea>
+            <div class="char-counter" id="char-counter">0/1000</div>
+          </div>
+        </section>
+
+        <!-- Treasury Selection Section -->
+        <section class="field-section">
+          <label class="field-label">Select treasury</label>
+          <button id="treasury-select-button" class="treasury-select-button" type="button">
+            <span id="treasury-select-text">Choose treasuries...</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </section>
+
+        <!-- x402 Payment Section -->
+        <section class="field-section payment-section">
+          <div class="payment-header">
+            <div class="payment-label-group">
+              <img
+                src="https://c.animaapp.com/ih9UJdKk/img/x402-icon-blue-2@2x.png"
+                alt="x402"
+                class="x402-icon"
+              />
+              <label class="field-label">Enable Pay-to-visit</label>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="pay-to-visit-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div id="payment-details" class="payment-details" style="display: none;">
+            <div class="payment-amount-group">
+              <div class="amount-input-wrapper">
+                <input
+                  type="number"
+                  id="payment-amount"
+                  class="amount-input"
+                  value="0.01"
+                  step="0.001"
+                  min="0"
+                  aria-label="Payment amount"
+                />
+              </div>
+              <span class="currency-label">USD</span>
+            </div>
+
+            <div class="payment-info">
+              <div class="income-info">
+                <div class="income-label-group">
+                  <span>Estimated income</span>
+                  <button type="button" class="info-button" title="Estimated income is 45% of the price. The remaining 55% goes to the original creator (45%) and the Copus community vault (10%)." aria-label="Information about estimated income">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <circle cx="6" cy="6" r="5.5" stroke="currentColor"/>
+                      <text x="6" y="9" text-anchor="middle" font-size="8" fill="currentColor" font-weight="bold">?</text>
+                    </svg>
+                  </button>
+                  <span>:</span>
+                </div>
+                <span id="estimated-income" class="income-value">0.0004 per unlock</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button id="cancel-button" class="btn-cancel">Cancel</button>
+          <button id="publish-button" class="btn-publish" type="button">Publish</button>
+        </div>
+
+        <p id="status-message" class="status-message" role="alert"></p>
+      </main>
+    </div>
+
+    <!-- Image Selection View -->
+    <div id="image-selection-view" class="image-selection-view" hidden>
+      <div class="image-selection-header">
+        <button id="go-back-button" class="back-button">←</button>
+        <h2>Detected Images</h2>
+      </div>
+      <div id="image-selection-grid" class="image-selection-grid"></div>
+    </div>
+
+    <!-- Treasury Selection Modal -->
+    <div id="treasury-selection-modal" class="treasury-modal" style="display: none;">
+      <div class="treasury-modal-content">
+        <div class="treasury-modal-header">
+          <h3>Choose treasuries</h3>
+          <button id="treasury-modal-close" class="treasury-modal-close" type="button">×</button>
+        </div>
+
+        <!-- Search Box -->
+        <div class="treasury-search-wrapper">
+          <svg class="treasury-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 14L11.1 11.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <input type="text" id="treasury-search-input" class="treasury-search-input" placeholder="Search treasuries..." />
+        </div>
+
+        <!-- Treasury List -->
+        <div id="treasury-list" class="treasury-list">
+          <div class="treasury-loading">Loading treasuries...</div>
+        </div>
+
+        <!-- Create New Treasury -->
+        <div class="treasury-create-section">
+          <div id="treasury-create-form" class="treasury-create-form" style="display: none;">
+            <input type="text" id="new-treasury-name" class="treasury-create-input" placeholder="Enter treasury name..." maxlength="50" />
+            <div class="treasury-create-actions">
+              <button id="treasury-create-cancel" class="treasury-create-btn treasury-create-btn-cancel" type="button">Cancel</button>
+              <button id="treasury-create-confirm" class="treasury-create-btn treasury-create-btn-confirm" type="button">Create</button>
+            </div>
+          </div>
+          <button id="treasury-create-trigger" class="treasury-create-trigger" type="button">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Create new treasury</span>
+          </button>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="treasury-modal-actions">
+          <button id="treasury-modal-cancel" class="btn-cancel" type="button">Cancel</button>
+          <button id="treasury-modal-save" class="btn-publish" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Image Cropper Modal -->
+    <div id="image-cropper-modal" class="cropper-modal" style="display: none;">
+      <div class="cropper-content">
+        <h3 class="cropper-title">Crop Image</h3>
+        <div class="cropper-canvas-wrapper">
+          <canvas id="cropper-canvas" class="cropper-canvas"></canvas>
+        </div>
+        <div class="cropper-instructions">
+          <div>🎯 Drag to move / Drag corners to resize</div>
+          <div>🔒 16:9 aspect ratio</div>
+        </div>
+        <div class="cropper-actions">
+          <button id="cropper-cancel" class="btn-cancel">Cancel</button>
+          <button id="cropper-confirm" class="btn-publish">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

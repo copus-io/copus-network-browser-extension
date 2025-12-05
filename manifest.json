@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Copus - Internet Treasure Map",
+  "description": "Save and share web finds. Set pay-to-unlock via x402 and earn from quality curation.",
+  "version": "1.7.5",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "tabCapture",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.copus.io/*",
+    "https://api.test.copus.io/*",
+    "https://api-prod.copus.network/*",
+    "https://api-test.copus.network/*",
+    "https://copus.network/*",
+    "https://test.copus.network/*",
+    "https://copus.ai/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "contentScript.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
