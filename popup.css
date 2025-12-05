@@ -1264,12 +1264,12 @@ input, select, textarea {
   gap: 16px;
 }
 
-/* Close button - top right */
+/* Close button - top right, above the header row */
 .treasury-modal-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 8px;
+  top: 8px;
+  right: 12px;
+  padding: 6px;
   background: transparent;
   border: none;
   cursor: pointer;
