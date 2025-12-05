@@ -1235,13 +1235,45 @@ async function fetchBindableSpaces() {
     }
 
     const apiBaseUrl = getApiBaseUrl();
-    const response = await fetch(`${apiBaseUrl}/client/article/bind/bindableSpaces`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${result.copus_token}`,
-        'Content-Type': 'application/json'
+    const url = `${apiBaseUrl}/client/article/bind/bindableSpaces`;
+    console.log('[Copus Extension] Fetching treasuries from:', url);
+
+    // Add timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    let response;
+    let lastError;
+
+    // Retry up to 2 times for network issues
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log('[Copus Extension] Treasury fetch attempt', attempt);
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${result.copus_token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        break;
+      } catch (fetchError) {
+        lastError = fetchError;
+        console.warn('[Copus Extension] Treasury fetch attempt', attempt, 'failed:', fetchError.message);
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
-    });
+    }
+
+    if (!response) {
+      throw lastError || new Error('Failed to fetch treasuries after retries');
+    }
 
     console.log('[Copus Extension] Bindable spaces response status:', response.status);
 
