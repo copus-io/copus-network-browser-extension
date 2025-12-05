@@ -670,7 +670,7 @@ function handleNotificationClick() {
 // Helper function to get the API base URL
 function getApiBaseUrl() {
   // Production API - must match the main site's API
-  return 'https://api.copus.io/copusV2';
+  return 'https://api-prod.copus.network';
 }
 
 // Authentication functions
