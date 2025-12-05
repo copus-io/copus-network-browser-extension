@@ -751,8 +751,15 @@ async function checkAuthentication() {
       };
     } else {
       console.log('[Copus Extension] Token validation failed with status:', response.status);
-      // IMPORTANT: Don't remove token! User might be offline or API might be down
-      // Only clear token if user explicitly logs out
+      // If token is explicitly rejected (401/403), clear it - user needs to re-login
+      if (response.status === 401 || response.status === 403) {
+        console.log('[Copus Extension] Token rejected by server, clearing storage');
+        if (chrome?.storage?.local) {
+          await chrome.storage.local.remove(['copus_token', 'copus_user']);
+        }
+        return { authenticated: false, tokenCleared: true };
+      }
+      // For other errors (500, etc), don't clear - might be server issue
       return { authenticated: false };
     }
   } catch (error) {

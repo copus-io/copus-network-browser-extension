@@ -4,7 +4,7 @@ document.documentElement.setAttribute('data-copus-extension-installed', 'true');
 console.log('[Copus Extension] Injected extension marker into DOM at:', window.location.href);
 
 // Sync tokens between website and extension
-// Bidirectional sync: both can be source of truth depending on context
+// Website is ALWAYS the source of truth - when user logs in/out on website, extension follows
 async function syncTokens() {
   const allowedDomains = ['copus.ai', 'www.copus.ai', 'copus.network', 'www.copus.network', 'localhost', '127.0.0.1'];
   const currentDomain = window.location.hostname;
@@ -30,23 +30,21 @@ async function syncTokens() {
         console.log('[Copus Extension] Tokens already in sync');
       }
     }
-    // Case 2: Website has token, extension doesn't - sync TO extension
+    // Case 2: Website has token, extension doesn't - sync TO extension (login)
     else if (websiteToken && !result.copus_token) {
-      console.log('[Copus Extension] Syncing token FROM website TO extension');
+      console.log('[Copus Extension] Syncing token FROM website TO extension (login)');
       await chrome.storage.local.set({
         copus_token: websiteToken,
         copus_user: websiteUser ? JSON.parse(websiteUser) : null
       });
       console.log('[Copus Extension] Token synced to extension successfully');
     }
-    // Case 3: Extension has token, website doesn't - sync TO website (fresh page load)
+    // Case 3: Extension has token, website doesn't - CLEAR extension (logout)
+    // Website is source of truth, so if website logged out, extension should too
     else if (!websiteToken && result.copus_token) {
-      console.log('[Copus Extension] Fresh page - syncing token FROM extension TO website');
-      localStorage.setItem('copus_token', result.copus_token);
-      if (result.copus_user) {
-        localStorage.setItem('copus_user', JSON.stringify(result.copus_user));
-      }
-      console.log('[Copus Extension] Token synced to website successfully');
+      console.log('[Copus Extension] Website logged out - clearing extension token');
+      await chrome.storage.local.remove(['copus_token', 'copus_user']);
+      console.log('[Copus Extension] Extension token cleared (synced logout from website)');
     }
     // Case 4: Both empty - already in sync (logged out)
     else {
