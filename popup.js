@@ -1176,14 +1176,27 @@ async function createNewTreasury(name) {
 
 /**
  * Get display name for a treasury based on spaceType
- * spaceType 1 = Treasury, spaceType 2 = Curations
+ * spaceType 1 = Treasury (or name === 'Default Collections Space')
+ * spaceType 2 = Curations (or name === 'Default Curations Space')
  */
 function getTreasuryDisplayName(treasury) {
-  if (treasury.spaceType === 1) {
-    return `${state.userInfo?.username || 'My'}'s Treasury`;
+  // Detect spaceType from name if not provided (matching main site logic)
+  let spaceType = treasury.spaceType;
+  if (spaceType === undefined || spaceType === null) {
+    if (treasury.name === 'Default Collections Space') {
+      spaceType = 1;
+    } else if (treasury.name === 'Default Curations Space') {
+      spaceType = 2;
+    }
   }
-  if (treasury.spaceType === 2) {
-    return `${state.userInfo?.username || 'My'}'s Curations`;
+
+  const username = state.userInfo?.username || 'User';
+
+  if (spaceType === 1) {
+    return `${username}'s Treasury`;
+  }
+  if (spaceType === 2) {
+    return `${username}'s Curations`;
   }
   return treasury.name || 'Untitled Treasury';
 }
@@ -1256,9 +1269,13 @@ function renderTreasuryList() {
     const displayName = getTreasuryDisplayName(treasury);
     const firstLetter = displayName.charAt(0).toUpperCase();
 
+    // Determine if this is a default space (spaceType 1 or 2, or by name)
+    const isDefaultSpace = treasury.spaceType === 1 || treasury.spaceType === 2 ||
+      treasury.name === 'Default Collections Space' || treasury.name === 'Default Curations Space';
+
     // Determine avatar - use user's faceUrl for default spaces
     let avatarHtml;
-    if ((treasury.spaceType === 1 || treasury.spaceType === 2) && state.userInfo?.faceUrl) {
+    if (isDefaultSpace && state.userInfo?.faceUrl) {
       avatarHtml = `<img src="${state.userInfo.faceUrl}" alt="${displayName}" onerror="this.parentElement.innerHTML='<span class=\\'treasury-avatar-letter\\'>${firstLetter}</span>'" />`;
     } else {
       avatarHtml = `<span class="treasury-avatar-letter">${firstLetter}</span>`;
