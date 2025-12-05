@@ -52,5 +52,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Proxy API requests through background script to avoid popup network issues
+  if (message.type === 'apiRequest') {
+    (async () => {
+      try {
+        console.log('[Copus Extension BG] Making API request:', message.url);
+        const response = await fetch(message.url, {
+          method: message.method || 'GET',
+          headers: message.headers || {},
+          body: message.body ? JSON.stringify(message.body) : undefined
+        });
+
+        const data = await response.json();
+        console.log('[Copus Extension BG] API response status:', response.status);
+        sendResponse({ success: true, data, status: response.status });
+      } catch (error) {
+        console.error('[Copus Extension BG] API request failed:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
+  }
+
   return undefined;
 });

@@ -1238,50 +1238,47 @@ async function fetchBindableSpaces() {
     const url = `${apiBaseUrl}/client/article/bind/bindableSpaces`;
     console.log('[Copus Extension] Fetching treasuries from:', url);
 
-    // Add timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    let response;
-    let lastError;
-
-    // Retry up to 2 times for network issues
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log('[Copus Extension] Treasury fetch attempt', attempt);
-        response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${result.copus_token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          mode: 'cors',
-          credentials: 'omit',
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        break;
-      } catch (fetchError) {
-        lastError = fetchError;
-        console.warn('[Copus Extension] Treasury fetch attempt', attempt, 'failed:', fetchError.message);
-        if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+    // Try using background script for API request (avoids popup network issues)
+    let responseData;
+    try {
+      console.log('[Copus Extension] Trying background script for API request...');
+      const bgResponse = await chrome.runtime.sendMessage({
+        type: 'apiRequest',
+        url: url,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${result.copus_token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
+      });
+
+      if (bgResponse && bgResponse.success) {
+        console.log('[Copus Extension] Background script request succeeded');
+        responseData = bgResponse.data;
+      } else {
+        throw new Error(bgResponse?.error || 'Background request failed');
       }
+    } catch (bgError) {
+      console.warn('[Copus Extension] Background request failed, falling back to direct fetch:', bgError.message);
+
+      // Fallback to direct fetch
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${result.copus_token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch treasuries (${response.status})`);
+      }
+
+      responseData = await response.json();
     }
 
-    if (!response) {
-      throw lastError || new Error('Failed to fetch treasuries after retries');
-    }
-
-    console.log('[Copus Extension] Bindable spaces response status:', response.status);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch treasuries (${response.status})`);
-    }
-
-    const responseData = await response.json();
     console.log('[Copus Extension] Bindable spaces response:', responseData);
 
     // Handle different API response formats
