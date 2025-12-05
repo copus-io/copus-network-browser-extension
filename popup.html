@@ -211,19 +211,41 @@
 
     <!-- Treasury Selection Modal -->
     <div id="treasury-selection-modal" class="treasury-modal" style="display: none;">
+      <!-- Backdrop -->
+      <div class="treasury-modal-backdrop" id="treasury-modal-backdrop"></div>
+
+      <!-- Modal Content -->
       <div class="treasury-modal-content">
+        <!-- Close Button (top right) -->
+        <button id="treasury-modal-close" class="treasury-modal-close" type="button" aria-label="Close dialog">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#686868" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <!-- Header with Title and New Treasury Button -->
         <div class="treasury-modal-header">
-          <h3>Choose treasuries</h3>
-          <button id="treasury-modal-close" class="treasury-modal-close" type="button">×</button>
+          <h2 id="choose-dialog-title">Choose treasuries</h2>
+          <button id="treasury-create-trigger" class="treasury-new-btn" type="button" aria-label="Create new treasury">
+            <img src="https://c.animaapp.com/eANMvAF7/img/plus.svg" alt="Add" width="20" height="20" />
+            <span>New treasury</span>
+          </button>
+        </div>
+
+        <!-- Create New Treasury Form (inline, hidden by default) -->
+        <div id="treasury-create-form" class="treasury-create-form" style="display: none;">
+          <input type="text" id="new-treasury-name" class="treasury-create-input" placeholder="Enter treasury name..." maxlength="50" />
+          <div class="treasury-create-actions">
+            <button id="treasury-create-cancel" class="treasury-create-btn treasury-create-btn-cancel" type="button">Cancel</button>
+            <button id="treasury-create-confirm" class="treasury-create-btn treasury-create-btn-confirm" type="button">Create</button>
+          </div>
         </div>
 
         <!-- Search Box -->
         <div class="treasury-search-wrapper">
-          <svg class="treasury-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M14 14L11.1 11.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <input type="text" id="treasury-search-input" class="treasury-search-input" placeholder="Search treasuries..." />
+          <img src="https://c.animaapp.com/eANMvAF7/img/icon-search.svg" alt="Search" class="treasury-search-icon" width="18" height="18" />
+          <input type="search" id="treasury-search-input" class="treasury-search-input" placeholder="Search" aria-label="Search collections" />
         </div>
 
         <!-- Treasury List -->
@@ -231,27 +253,10 @@
           <div class="treasury-loading">Loading treasuries...</div>
         </div>
 
-        <!-- Create New Treasury -->
-        <div class="treasury-create-section">
-          <div id="treasury-create-form" class="treasury-create-form" style="display: none;">
-            <input type="text" id="new-treasury-name" class="treasury-create-input" placeholder="Enter treasury name..." maxlength="50" />
-            <div class="treasury-create-actions">
-              <button id="treasury-create-cancel" class="treasury-create-btn treasury-create-btn-cancel" type="button">Cancel</button>
-              <button id="treasury-create-confirm" class="treasury-create-btn treasury-create-btn-confirm" type="button">Create</button>
-            </div>
-          </div>
-          <button id="treasury-create-trigger" class="treasury-create-trigger" type="button">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>Create new treasury</span>
-          </button>
-        </div>
-
-        <!-- Modal Actions -->
+        <!-- Modal Actions (sticky bottom with shadow) -->
         <div class="treasury-modal-actions">
-          <button id="treasury-modal-cancel" class="btn-cancel" type="button">Cancel</button>
-          <button id="treasury-modal-save" class="btn-publish" type="button">Save</button>
+          <button id="treasury-modal-cancel" class="treasury-action-cancel" type="button">Cancel</button>
+          <button id="treasury-modal-save" class="treasury-action-save" type="button">Save</button>
         </div>
       </div>
     </div>

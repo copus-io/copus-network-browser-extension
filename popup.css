@@ -1204,7 +1204,7 @@ input, select, textarea {
   border: 1px solid var(--border-light);
   border-radius: 8px;
   background: var(--bg-white);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   color: var(--text-muted);
   cursor: pointer;
@@ -1234,160 +1234,230 @@ input, select, textarea {
   color: var(--text-muted);
 }
 
-/* Treasury Modal */
+/* Treasury Modal - Matching main site design */
 .treasury-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+}
+
+.treasury-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .treasury-modal-content {
-  background: var(--bg-white);
-  border-radius: 12px;
-  width: 340px;
-  max-height: 500px;
+  position: relative;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 340px;
+  max-width: 90vw;
+  max-height: 80vh;
+  padding: 24px 24px 12px 24px;
+  background: white;
+  border-radius: 15px;
+  gap: 16px;
 }
 
+/* Close button - top right */
+.treasury-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 20;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.treasury-modal-close:hover {
+  opacity: 0.7;
+}
+
+/* Header with title and new treasury button */
 .treasury-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid var(--border-light);
+  width: 100%;
+  padding-right: 30px; /* Space for close button */
 }
 
-.treasury-modal-header h3 {
+.treasury-modal-header h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  color: #231f20;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.treasury-modal-close {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 20px;
-  cursor: pointer;
+/* New treasury button in header */
+.treasury-new-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background 0.2s ease, color 0.2s ease;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
-.treasury-modal-close:hover {
-  background: var(--bg-primary);
-  color: var(--text-primary);
+.treasury-new-btn:hover {
+  opacity: 0.7;
 }
 
-/* Treasury Search */
+.treasury-new-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+.treasury-new-btn span {
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #231f20;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Treasury Search - matching main site */
 .treasury-search-wrapper {
-  position: relative;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 15px;
+  background: linear-gradient(0deg, rgba(224, 224, 224, 0.4) 0%, rgba(224, 224, 224, 0.4) 100%),
+              linear-gradient(0deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 1) 100%);
 }
 
 .treasury-search-icon {
-  position: absolute;
-  left: 28px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  pointer-events: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .treasury-search-input {
-  width: 100%;
-  padding: 8px 12px 8px 36px;
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  color: var(--text-primary);
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #231f20;
   outline: none;
-  transition: border-color 0.2s ease;
-}
-
-.treasury-search-input:focus {
-  border-color: var(--color-blue);
+  line-height: 1.4;
 }
 
 .treasury-search-input::placeholder {
-  color: var(--text-muted);
+  color: #686868;
 }
 
 /* Treasury List */
 .treasury-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
-  max-height: 250px;
-  min-height: 100px;
+  max-height: 220px;
+  min-height: 80px;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-.treasury-loading {
-  padding: 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
+.treasury-list:hover {
+  scrollbar-color: #d1d5db transparent;
 }
 
+.treasury-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.treasury-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.treasury-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.treasury-list:hover::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+
+.treasury-loading,
 .treasury-empty {
   padding: 20px;
   text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
+  color: #686868;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
 }
 
-/* Treasury Item */
+/* Treasury Item - matching main site */
 .treasury-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background-color 0.2s ease;
 }
 
 .treasury-item:hover {
-  background: var(--bg-primary);
+  background-color: #f9fafb;
 }
 
+.treasury-item:last-child {
+  border-bottom: none;
+}
+
+.treasury-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Round checkbox - matching main site */
 .treasury-checkbox {
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--border-light);
-  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
+  background: white;
+}
+
+.treasury-checkbox:hover {
+  border-color: #9ca3af;
 }
 
 .treasury-item.selected .treasury-checkbox {
-  background: var(--color-red);
-  border-color: var(--color-red);
+  background: #f23a00;
+  border-color: #f23a00;
 }
 
 .treasury-checkbox svg {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   color: white;
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -1397,13 +1467,14 @@ input, select, textarea {
   opacity: 1;
 }
 
+/* Avatar - matching main site (40px) */
 .treasury-avatar {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--bg-primary);
+  background: #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1416,65 +1487,33 @@ input, select, textarea {
 }
 
 .treasury-avatar-letter {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #6b7280;
   text-transform: uppercase;
 }
 
-.treasury-info {
-  flex: 1;
-  min-width: 0;
-}
-
+/* Treasury name - matching main site (16px) */
 .treasury-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #231f20;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.treasury-type {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-/* Treasury Create Section */
-.treasury-create-section {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-light);
-}
-
-.treasury-create-trigger {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px dashed var(--border-dashed);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-
-.treasury-create-trigger:hover {
-  border-color: var(--color-blue);
-  color: var(--color-blue);
-  background: rgba(33, 145, 251, 0.05);
-}
-
+/* Create treasury form */
 .treasury-create-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 10px;
 }
 
 .treasury-create-input {
@@ -1483,9 +1522,9 @@ input, select, textarea {
   border: 1px solid var(--border-light);
   border-radius: 8px;
   background: var(--bg-white);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  color: var(--text-primary);
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: #231f20;
   outline: none;
   transition: border-color 0.2s ease;
 }
@@ -1495,7 +1534,7 @@ input, select, textarea {
 }
 
 .treasury-create-input::placeholder {
-  color: var(--text-muted);
+  color: #686868;
 }
 
 .treasury-create-actions {
@@ -1505,10 +1544,10 @@ input, select, textarea {
 }
 
 .treasury-create-btn {
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 15px;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1516,41 +1555,80 @@ input, select, textarea {
 
 .treasury-create-btn-cancel {
   background: transparent;
-  border: 1px solid var(--border-light);
-  color: var(--text-secondary);
+  border: none;
+  color: #231f20;
 }
 
 .treasury-create-btn-cancel:hover {
-  background: var(--bg-primary);
+  background: #e5e7eb;
 }
 
 .treasury-create-btn-confirm {
-  background: var(--color-red);
+  background: #f23a00;
   border: none;
   color: white;
+  border-radius: 100px;
 }
 
 .treasury-create-btn-confirm:hover {
-  background: #e03d0f;
+  background: rgba(242, 58, 0, 0.9);
 }
 
 .treasury-create-btn-confirm:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Modal Actions */
+/* Modal Actions - sticky bottom with shadow */
 .treasury-modal-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
-  padding: 16px;
-  border-top: 1px solid var(--border-light);
+  padding-top: 12px;
+  background: white;
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin: 0 -24px -12px -24px;
+  padding: 12px 24px;
 }
 
-.treasury-modal-actions .btn-cancel,
-.treasury-modal-actions .btn-publish {
+.treasury-action-cancel {
   padding: 8px 20px;
-  font-size: 13px;
+  border-radius: 15px;
+  background: transparent;
+  border: none;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #231f20;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  line-height: 1.4;
+}
+
+.treasury-action-cancel:hover {
+  background: #f3f4f6;
+}
+
+.treasury-action-save {
+  padding: 8px 20px;
+  border-radius: 100px;
+  background: #f23a00;
+  border: none;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  line-height: 1.4;
+}
+
+.treasury-action-save:hover {
+  background: rgba(242, 58, 0, 0.9);
+}
+
+.treasury-action-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 

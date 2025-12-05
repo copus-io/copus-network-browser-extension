@@ -1357,10 +1357,12 @@ async function openTreasuryModal() {
   // Show loading state
   elements.treasuryList.innerHTML = '<div class="treasury-loading">Loading treasuries...</div>';
 
-  // Hide create form, show trigger
+  // Hide create form
   elements.treasuryCreateForm.style.display = 'none';
-  elements.treasuryCreateTrigger.style.display = 'flex';
   elements.newTreasuryName.value = '';
+
+  // Update save button text
+  updateSaveButtonText();
 
   try {
     // Fetch treasuries
@@ -1397,10 +1399,11 @@ function renderTreasuryList() {
 
   if (filteredTreasuries.length === 0) {
     elements.treasuryList.innerHTML = '<div class="treasury-empty">No treasuries found</div>';
+    updateSaveButtonText();
     return;
   }
 
-  // Build the list HTML
+  // Build the list HTML - matching main site structure
   const listHTML = filteredTreasuries.map(treasury => {
     const isSelected = state.selectedTreasuries.some(t => t.id === treasury.id);
     const displayName = getTreasuryDisplayName(treasury);
@@ -1414,33 +1417,24 @@ function renderTreasuryList() {
       avatarHtml = `<span class="treasury-avatar-letter">${firstLetter}</span>`;
     }
 
-    // Get treasury type label
-    let typeLabel = '';
-    if (treasury.spaceType === 1) {
-      typeLabel = 'Default Treasury';
-    } else if (treasury.spaceType === 2) {
-      typeLabel = 'Default Curations';
-    }
-
     return `
-      <div class="treasury-item ${isSelected ? 'selected' : ''}" data-treasury-id="${treasury.id}">
-        <div class="treasury-checkbox">
-          <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+      <li class="treasury-item ${isSelected ? 'selected' : ''}" data-treasury-id="${treasury.id}">
+        <div class="treasury-item-left">
+          <div class="treasury-checkbox">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="treasury-avatar">
+            ${avatarHtml}
+          </div>
+          <span class="treasury-name">${displayName}</span>
         </div>
-        <div class="treasury-avatar">
-          ${avatarHtml}
-        </div>
-        <div class="treasury-info">
-          <div class="treasury-name">${displayName}</div>
-          ${typeLabel ? `<div class="treasury-type">${typeLabel}</div>` : ''}
-        </div>
-      </div>
+      </li>
     `;
   }).join('');
 
-  elements.treasuryList.innerHTML = listHTML;
+  elements.treasuryList.innerHTML = `<ul style="list-style: none; margin: 0; padding: 0;">${listHTML}</ul>`;
 
   // Add click handlers to items
   elements.treasuryList.querySelectorAll('.treasury-item').forEach(item => {
@@ -1449,6 +1443,9 @@ function renderTreasuryList() {
       toggleTreasurySelection(treasuryId);
     });
   });
+
+  // Update save button text
+  updateSaveButtonText();
 }
 
 /**
@@ -1477,6 +1474,20 @@ function toggleTreasurySelection(treasuryId) {
 }
 
 /**
+ * Update save button text with selection count (matching main site)
+ */
+function updateSaveButtonText() {
+  if (!elements.treasuryModalSave) return;
+
+  const count = state.selectedTreasuries.length;
+  if (count > 0) {
+    elements.treasuryModalSave.textContent = `Save (${count})`;
+  } else {
+    elements.treasuryModalSave.textContent = 'Save';
+  }
+}
+
+/**
  * Handle treasury search input
  */
 function handleTreasurySearch(event) {
@@ -1488,7 +1499,6 @@ function handleTreasurySearch(event) {
  * Show the create treasury form
  */
 function showTreasuryCreateForm() {
-  elements.treasuryCreateTrigger.style.display = 'none';
   elements.treasuryCreateForm.style.display = 'flex';
   elements.newTreasuryName.value = '';
   elements.newTreasuryName.focus();
@@ -1499,7 +1509,6 @@ function showTreasuryCreateForm() {
  */
 function hideTreasuryCreateForm() {
   elements.treasuryCreateForm.style.display = 'none';
-  elements.treasuryCreateTrigger.style.display = 'flex';
   elements.newTreasuryName.value = '';
 }
 
@@ -1626,13 +1635,10 @@ function initTreasuryEventListeners() {
     });
   }
 
-  // Click outside modal to close
-  if (elements.treasuryModal) {
-    elements.treasuryModal.addEventListener('click', (e) => {
-      if (e.target === elements.treasuryModal) {
-        closeTreasuryModal();
-      }
-    });
+  // Click on backdrop to close modal
+  const backdrop = document.getElementById('treasury-modal-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', closeTreasuryModal);
   }
 }
 
