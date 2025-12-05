@@ -925,6 +925,15 @@ async function tryReadTokenFromCopusTabs() {
               console.log('[Copus Extension] Stored token in extension storage');
             }
             return { token, user };
+          } else {
+            // IMPORTANT: Website has no token - user logged out on main site
+            // Clear extension storage to sync logout state
+            console.log('[Copus Extension] No token found in copus tab - user logged out on main site');
+            if (chrome?.storage?.local) {
+              await chrome.storage.local.remove(['copus_token', 'copus_user']);
+              console.log('[Copus Extension] Cleared extension storage (synced logout from main site)');
+            }
+            return { token: null, user: null, loggedOut: true };
           }
         }
       } catch (error) {
@@ -945,7 +954,17 @@ async function validateUserInBackground() {
   console.log('[Copus Extension] Starting background authentication validation...');
 
   // First, try to read token from any copus.network tab
-  await tryReadTokenFromCopusTabs();
+  // This syncs the logout state from the main site
+  const tabSyncResult = await tryReadTokenFromCopusTabs();
+
+  // If sync found that user logged out on main site, show login screen
+  if (tabSyncResult && tabSyncResult.loggedOut) {
+    console.log('[Copus Extension] Background validation: User logged out on main site');
+    showLoginScreen();
+    state.isLoggedIn = false;
+    state.userInfo = null;
+    return;
+  }
 
   // Force a fresh check by asking content scripts to re-validate tokens
   try {
@@ -970,7 +989,15 @@ async function validateUserInBackground() {
 
   console.log('[Copus Extension] Background validation result:', authResult.authenticated);
 
-  // IMPORTANT: Don't switch screens based on API validation!
+  // IMPORTANT: If token was cleared (401/403), switch to login screen
+  if (authResult.tokenCleared) {
+    console.log('[Copus Extension] Background validation: Token rejected, showing login screen');
+    showLoginScreen();
+    state.isLoggedIn = false;
+    state.userInfo = null;
+    return;
+  }
+
   // If we're showing the main app (because token exists), keep showing it
   // Only update user info if validation succeeds
   if (authResult.authenticated && elements.mainContainer.style.display === 'flex') {
@@ -996,7 +1023,17 @@ async function loginUser() {
   console.log('[Copus Extension] Initializing authentication...');
 
   // First, try to read token from any copus.network tab
-  await tryReadTokenFromCopusTabs();
+  // This syncs the logout state from the main site
+  const tabSyncResult = await tryReadTokenFromCopusTabs();
+
+  // If sync found that user logged out on main site, show login screen
+  if (tabSyncResult && tabSyncResult.loggedOut) {
+    console.log('[Copus Extension] loginUser: User logged out on main site');
+    showLoginScreen();
+    state.isLoggedIn = false;
+    state.userInfo = null;
+    return;
+  }
 
   // Force a fresh check by asking content scripts to re-validate tokens
   try {
@@ -1030,6 +1067,13 @@ async function loginUser() {
 
   // Validate token in background and update user info if successful
   const authResult = await checkAuthentication();
+  if (authResult.tokenCleared) {
+    console.log('[Copus Extension] loginUser: Token rejected, showing login screen');
+    showLoginScreen();
+    state.isLoggedIn = false;
+    state.userInfo = null;
+    return;
+  }
   if (authResult.authenticated && authResult.user) {
     console.log('[Copus Extension] Token validated, updating user info');
     state.userInfo = authResult.user;
@@ -2192,75 +2236,52 @@ async function initialize() {
   // Initialize authentication token
   initializeTestToken();
 
-  // Quick token check FIRST to decide screen (no waiting)
-  const hasToken = await quickTokenCheck();
+  // IMPORTANT: First sync with copus.network tabs to get current login state
+  // This ensures we show the correct screen (login vs main app)
+  // Website is the source of truth for auth state
+  const tabSyncResult = await tryReadTokenFromCopusTabs();
 
-  if (hasToken) {
-    // Start with main app if token exists
-    elements.loginScreen.style.display = 'none';
-    elements.mainContainer.style.display = 'flex';
-    console.log('[Copus Extension] Token found, starting with main app');
-
-    // Load user data from storage and display immediately
-    try {
-      let result = { copus_user: null };
-      if (chrome?.storage?.local) {
-        result = await chrome.storage.local.get(['copus_user']);
-      } else {
-        const userStr = localStorage.getItem('copus_user');
-        if (userStr) result.copus_user = JSON.parse(userStr);
-      }
-
-      if (result.copus_user) {
-        console.log('[Copus Extension] Loaded user from storage, displaying avatar');
-        state.userInfo = result.copus_user;
-        state.isLoggedIn = true;
-        updateUserAvatar(result.copus_user);
-      }
-    } catch (error) {
-      console.log('[Copus Extension] Could not load user from storage:', error);
-    }
+  // If sync found that user logged out on main site, clear storage
+  if (tabSyncResult && tabSyncResult.loggedOut) {
+    console.log('[Copus Extension] Detected logout from copus tabs sync');
+    showLoginScreen();
+    state.isLoggedIn = false;
+    state.userInfo = null;
   } else {
-    // No token in storage, show login screen immediately
-    elements.loginScreen.style.display = 'flex';
-    elements.mainContainer.style.display = 'none';
-    console.log('[Copus Extension] No token in storage, showing login screen');
+    // Now check token after sync
+    const hasToken = await quickTokenCheck();
 
-    // Try reading from copus tabs in background (non-blocking)
-    tryReadTokenFromCopusTabs().then(async () => {
-      // Check if we found a token
-      const hasTokenNow = await quickTokenCheck();
-      if (hasTokenNow) {
-        // Found token, switch to main app
-        console.log('[Copus Extension] Token found from tabs, switching to main app');
-        elements.loginScreen.style.display = 'none';
-        elements.mainContainer.style.display = 'flex';
+    if (hasToken) {
+      // Start with main app if token exists
+      elements.loginScreen.style.display = 'none';
+      elements.mainContainer.style.display = 'flex';
+      console.log('[Copus Extension] Token found, starting with main app');
 
-        // Load user data
-        try {
-          let result = { copus_user: null };
-          if (chrome?.storage?.local) {
-            result = await chrome.storage.local.get(['copus_user']);
-          } else {
-            const userStr = localStorage.getItem('copus_user');
-            if (userStr) result.copus_user = JSON.parse(userStr);
-          }
-
-          if (result.copus_user) {
-            state.userInfo = result.copus_user;
-            state.isLoggedIn = true;
-            updateUserAvatar(result.copus_user);
-          }
-
-          // Validate user and fetch categories
-          validateUserInBackground();
-        } catch (error) {
-          console.log('[Copus Extension] Could not load user from storage:', error);
+      // Load user data from storage and display immediately
+      try {
+        let result = { copus_user: null };
+        if (chrome?.storage?.local) {
+          result = await chrome.storage.local.get(['copus_user']);
+        } else {
+          const userStr = localStorage.getItem('copus_user');
+          if (userStr) result.copus_user = JSON.parse(userStr);
         }
+
+        if (result.copus_user) {
+          console.log('[Copus Extension] Loaded user from storage, displaying avatar');
+          state.userInfo = result.copus_user;
+          state.isLoggedIn = true;
+          updateUserAvatar(result.copus_user);
+        }
+      } catch (error) {
+        console.log('[Copus Extension] Could not load user from storage:', error);
       }
-    }).catch(error => {
-      console.log('[Copus Extension] Background token read failed:', error);
-    });
+    } else {
+      // No token in storage, show login screen
+      elements.loginScreen.style.display = 'flex';
+      elements.mainContainer.style.display = 'none';
+      console.log('[Copus Extension] No token in storage, showing login screen');
+    }
   }
 
   console.timeEnd('setup_initial_state');

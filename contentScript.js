@@ -45,6 +45,10 @@ async function syncTokens() {
       console.log('[Copus Extension] Website logged out - clearing extension token');
       await chrome.storage.local.remove(['copus_token', 'copus_user']);
       console.log('[Copus Extension] Extension token cleared (synced logout from website)');
+
+      // Also notify background script to ensure logout is propagated
+      chrome.runtime.sendMessage({ type: 'clearAuthToken' });
+      console.log('[Copus Extension] Notified background script of logout sync');
     }
     // Case 4: Both empty - already in sync (logged out)
     else {
@@ -68,6 +72,10 @@ window.addEventListener('message', async (event) => {
       // Clear extension's stored token and user data
       await chrome.storage.local.remove(['copus_token', 'copus_user']);
       console.log('[Copus Extension] Cleared extension storage after logout');
+
+      // Notify background script to ensure all extension state is cleared
+      chrome.runtime.sendMessage({ type: 'clearAuthToken' });
+      console.log('[Copus Extension] Notified background script of logout');
 
       // Clear validation cache
       lastValidationTime = 0;
