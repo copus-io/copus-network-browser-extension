@@ -24,85 +24,6 @@ const state = {
 
 const elements = {};
 
-// ========== Recent Categories Utility Functions ==========
-const RECENT_CATEGORIES_KEY = 'copus_recent_categories';
-const MAX_RECENT_CATEGORIES = 5;
-
-/**
- * Get recently used categories from localStorage
- */
-function getRecentCategories() {
-  try {
-    const stored = localStorage.getItem(RECENT_CATEGORIES_KEY);
-    if (!stored) return [];
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error('[Recent Categories] Error reading:', error);
-    return [];
-  }
-}
-
-/**
- * Add a category to recently used list
- */
-function addRecentCategory(categoryId, categoryName) {
-  try {
-    let recentCategories = getRecentCategories();
-
-    // Remove existing entry for this category
-    recentCategories = recentCategories.filter(cat => cat.id !== categoryId);
-
-    // Add to the beginning of the list
-    recentCategories.unshift({
-      id: categoryId,
-      name: categoryName,
-      timestamp: Date.now()
-    });
-
-    // Keep only the most recent MAX_RECENT_CATEGORIES
-    recentCategories = recentCategories.slice(0, MAX_RECENT_CATEGORIES);
-
-    localStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(recentCategories));
-    console.log('[Recent Categories] Saved:', categoryName);
-  } catch (error) {
-    console.error('[Recent Categories] Error saving:', error);
-  }
-}
-
-/**
- * Sort categories to show recently used ones first
- */
-function sortCategoriesByRecent(categories) {
-  const recentCategories = getRecentCategories();
-  const recentIds = new Set(recentCategories.map(cat => cat.id));
-
-  // Split into recent and non-recent
-  const recent = [];
-  const others = [];
-
-  categories.forEach(category => {
-    const categoryId = category.id || category.value;
-    if (recentIds.has(categoryId)) {
-      recent.push(category);
-    } else {
-      others.push(category);
-    }
-  });
-
-  // Sort recent categories by their timestamp (most recent first)
-  recent.sort((a, b) => {
-    const aId = a.id || a.value;
-    const bId = b.id || b.value;
-    const aRecent = recentCategories.find(cat => cat.id === aId);
-    const bRecent = recentCategories.find(cat => cat.id === bId);
-    return (bRecent?.timestamp || 0) - (aRecent?.timestamp || 0);
-  });
-
-  console.log('[Recent Categories] Sorted:', recent.length, 'recent,', others.length, 'others');
-  // Combine: recent first, then others
-  return [...recent, ...others];
-}
-
 // ========== Local storage functions for token management ==========
 function saveAuthToken(token) {
   try {
@@ -1062,11 +983,6 @@ async function validateUserInBackground() {
     // Let them try to use the extension anyway
   }
 
-  // ALWAYS fetch categories if main app is showing (regardless of API validation)
-  // Categories API can succeed even if userInfo API fails
-  if (elements.mainContainer.style.display === 'flex') {
-    fetchCategories();
-  }
 }
 
 async function loginUser() {
@@ -1112,104 +1028,6 @@ async function loginUser() {
     state.userInfo = authResult.user;
     updateUserAvatar(authResult.user);
   }
-}
-
-async function fetchCategories() {
-  try {
-    console.log('[Copus Extension] Fetching categories from API...');
-
-    // Get authentication token
-    let result = { copus_token: null };
-    if (chrome?.storage?.local) {
-      result = await chrome.storage.local.get(['copus_token']);
-    } else {
-      result.copus_token = localStorage.getItem('copus_token');
-    }
-
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-
-    // Add authorization header if available
-    if (result.copus_token) {
-      headers['Authorization'] = `Bearer ${result.copus_token}`;
-      console.log('[Copus Extension] Added Authorization header for categories API');
-    }
-
-    // Add timeout to prevent hanging
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-    const apiBaseUrl = getApiBaseUrl();
-    const response = await fetch(`${apiBaseUrl}/client/author/article/categoryList`, {
-      method: 'GET',
-      headers: headers,
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    console.log('[Copus Extension] Categories API response status:', response.status);
-
-    if (!response.ok) {
-      throw new Error('Failed to load categories (' + response.status + ')');
-    }
-
-    const responseData = await response.json();
-    console.log('[Copus Extension] Categories API response:', responseData);
-
-    // Extract categories from the nested response structure
-    const categories = responseData?.data?.data || responseData?.data || responseData;
-
-    if (!Array.isArray(categories)) {
-      console.warn('[Copus Extension] Unexpected category response format:', responseData);
-      throw new Error('Unexpected category response format.');
-    }
-
-    console.log('[Copus Extension] Found', categories.length, 'categories');
-    populateTopicSelect(categories);
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log('[Copus Extension] Categories fetch timeout - using fallback options');
-    } else {
-      console.error('[Copus Extension] Error fetching categories:', error);
-    }
-    // Use fallback categories
-    populateTopicSelect([]);
-  }
-}
-
-function populateTopicSelect(categories) {
-  console.log('[Copus Extension] Populating topic select with categories:', categories);
-
-  if (!Array.isArray(categories) || categories.length === 0) {
-    console.warn('[Copus Extension] No categories from API, using fallback static options');
-    // Fallback to static options if API fails
-    elements.topicSelect.innerHTML = `
-      <option value="" disabled selected>Select a topic...</option>
-      <option value="1">Life</option>
-      <option value="2">Art</option>
-      <option value="3">Design</option>
-      <option value="4">Technology</option>
-    `;
-    return;
-  }
-
-  // Sort categories to show recently used ones first
-  const sortedCategories = sortCategoriesByRecent(categories);
-
-  // Clear existing options and add placeholder
-  elements.topicSelect.innerHTML = '<option value="" disabled selected>Select a topic...</option>';
-
-  sortedCategories.forEach((category) => {
-    const option = document.createElement('option');
-    option.value = category.id || category.value || '';
-    option.textContent = category.name || category.label || 'Unnamed category';
-    elements.topicSelect.appendChild(option);
-    console.log('[Copus Extension] Added category:', category.name, 'with ID:', option.value);
-  });
-
-  console.log('[Copus Extension] Successfully populated', sortedCategories.length, 'categories (sorted by recent usage)');
 }
 
 // ========== Treasury Selection Functions ==========
