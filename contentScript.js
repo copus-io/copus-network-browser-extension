@@ -214,8 +214,8 @@ async function checkForAuthToken(force = false) {
           // Detect environment and use appropriate API
           // IMPORTANT: Must match the main site's API endpoints
           const isTestEnv = currentDomain.includes('test') || isLocalDev;
-          const apiBaseUrl = isTestEnv ? 'https://api.test.copus.io/copusV2' : 'https://api.copus.io/copusV2';
-          const apiUrl = `${apiBaseUrl}/client/user/info`;
+          const apiBaseUrl = isTestEnv ? 'https://api-test.copus.network/copusV2' : 'https://api-prod.copus.network/copusV2';
+          const apiUrl = `${apiBaseUrl}/client/user/userInfo`;
 
           console.log('[Copus Extension] Detected environment:', isTestEnv ? 'TEST' : 'PRODUCTION');
           console.log('[Copus Extension] Validating token with API:', apiUrl);

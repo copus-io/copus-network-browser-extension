@@ -12,8 +12,6 @@
     "storage"
   ],
   "host_permissions": [
-    "https://api.copus.io/*",
-    "https://api.test.copus.io/*",
     "https://api-prod.copus.network/*",
     "https://api-test.copus.network/*",
     "https://copus.network/*",
