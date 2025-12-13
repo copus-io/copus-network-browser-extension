@@ -5,6 +5,9 @@ console.log('[Copus Extension] Injected extension marker into DOM at:', window.l
 
 // Sync tokens between website and extension
 // Website is ALWAYS the source of truth - when user logs in/out on website, extension follows
+// Important: Check BOTH localStorage AND sessionStorage since mainsite can use either
+// CRITICAL: Don't auto-clear extension storage just because website storage is empty on page load
+// (new tabs start with empty sessionStorage even if user is logged in elsewhere)
 async function syncTokens() {
   const allowedDomains = ['copus.ai', 'www.copus.ai', 'copus.network', 'www.copus.network', 'localhost', '127.0.0.1'];
   const currentDomain = window.location.hostname;
@@ -14,9 +17,17 @@ async function syncTokens() {
   }
 
   try {
-    const websiteToken = localStorage.getItem('copus_token');
-    const websiteUser = localStorage.getItem('copus_user');
+    // Check BOTH localStorage and sessionStorage (mainsite uses sessionStorage when "Remember me" is disabled)
+    const websiteToken = localStorage.getItem('copus_token') || sessionStorage.getItem('copus_token');
+    const websiteUser = localStorage.getItem('copus_user') || sessionStorage.getItem('copus_user');
     const result = await chrome.storage.local.get(['copus_token', 'copus_user']);
+
+    console.log('[Copus Extension] Token sync check:', {
+      hasLocalStorageToken: !!localStorage.getItem('copus_token'),
+      hasSessionStorageToken: !!sessionStorage.getItem('copus_token'),
+      hasExtensionToken: !!result.copus_token,
+      url: window.location.href
+    });
 
     // Case 1: Both have tokens - ensure they match (website wins if different)
     if (websiteToken && result.copus_token) {
@@ -39,16 +50,33 @@ async function syncTokens() {
       });
       console.log('[Copus Extension] Token synced to extension successfully');
     }
-    // Case 3: Extension has token, website doesn't - CLEAR extension (logout)
-    // Website is source of truth, so if website logged out, extension should too
+    // Case 3: Extension has token, website doesn't
+    // IMPORTANT: Don't auto-clear! The website might just have empty sessionStorage on a new tab
+    // Only clear when we receive an explicit logout event from the website
     else if (!websiteToken && result.copus_token) {
-      console.log('[Copus Extension] Website logged out - clearing extension token');
-      await chrome.storage.local.remove(['copus_token', 'copus_user']);
-      console.log('[Copus Extension] Extension token cleared (synced logout from website)');
+      console.log('[Copus Extension] Website has no token but extension does');
+      console.log('[Copus Extension] Injecting extension token INTO website storage (preserving login)');
 
-      // Also notify background script to ensure logout is propagated
-      chrome.runtime.sendMessage({ type: 'clearAuthToken' });
-      console.log('[Copus Extension] Notified background script of logout sync');
+      // ALWAYS inject into localStorage for reliability
+      // The mainsite's storage utility checks both localStorage and sessionStorage
+      // Using localStorage ensures it persists across tab reloads
+      localStorage.setItem('copus_token', result.copus_token);
+      if (result.copus_user) {
+        localStorage.setItem('copus_user', JSON.stringify(result.copus_user));
+      }
+      console.log('[Copus Extension] Token injected into localStorage');
+
+      // Dispatch storage event to notify React app of the new token
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'copus_token',
+        newValue: result.copus_token,
+        storageArea: localStorage
+      }));
+
+      // Also dispatch a custom event that the React app might listen to
+      window.dispatchEvent(new CustomEvent('copus_token_injected', {
+        detail: { token: result.copus_token }
+      }));
     }
     // Case 4: Both empty - already in sync (logged out)
     else {
@@ -186,10 +214,12 @@ async function checkForAuthToken(force = false) {
     console.log('[Copus Extension] Checking auth token on:', `${currentDomain}:${currentPort}`);
 
     // Check for the correct token storage key from main site
-    const token = localStorage.getItem('copus_token');
-    const userData = localStorage.getItem('copus_user');
+    // Check BOTH localStorage and sessionStorage (mainsite uses sessionStorage when "Remember me" is NOT checked)
+    const token = localStorage.getItem('copus_token') || sessionStorage.getItem('copus_token');
+    const userData = localStorage.getItem('copus_user') || sessionStorage.getItem('copus_user');
 
     console.log('[Copus Extension] Token found:', token ? `${token.substring(0, 20)}...` : 'None');
+    console.log('[Copus Extension] Token source:', localStorage.getItem('copus_token') ? 'localStorage' : (sessionStorage.getItem('copus_token') ? 'sessionStorage' : 'none'));
     console.log('[Copus Extension] User data found:', userData ? 'Yes' : 'No');
 
     if (token) {
@@ -347,5 +377,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Force validation bypass cache when explicitly requested by popup
     checkForAuthToken(true);
     sendResponse({ success: true });
+  }
+
+  // Inject token from extension storage into page storage (for preserving login when navigating)
+  if (message.type === 'injectToken') {
+    console.log('[Copus Extension] Received injectToken request');
+    const { token, user } = message;
+
+    if (token) {
+      // Check if the page already has a valid token in EITHER storage
+      const localToken = localStorage.getItem('copus_token');
+      const sessionToken = sessionStorage.getItem('copus_token');
+      const existingToken = localToken || sessionToken;
+
+      if (!existingToken || existingToken !== token) {
+        // ALWAYS use localStorage for reliability
+        // The mainsite's storage.getItem() checks both localStorage and sessionStorage
+        console.log('[Copus Extension] Injecting token into localStorage');
+        localStorage.setItem('copus_token', token);
+        if (user) {
+          localStorage.setItem('copus_user', JSON.stringify(user));
+        }
+        // Trigger a storage event to notify the React app
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'copus_token',
+          newValue: token,
+          storageArea: localStorage
+        }));
+        // Also dispatch custom event
+        window.dispatchEvent(new CustomEvent('copus_token_injected', {
+          detail: { token: token }
+        }));
+        sendResponse({ success: true, injected: true });
+      } else {
+        console.log('[Copus Extension] Token already present, skipping injection');
+        sendResponse({ success: true, injected: false, reason: 'already_present' });
+      }
+    } else {
+      sendResponse({ success: false, error: 'No token provided' });
+    }
   }
 });

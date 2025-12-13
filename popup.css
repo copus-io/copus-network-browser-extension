@@ -253,7 +253,7 @@ input, select, textarea {
   color: var(--text-primary);
   resize: none;
   outline: none;
-  min-height: 45px;
+  min-height: 60px;
   line-height: 1.4;
 }
 
@@ -1261,6 +1261,7 @@ input, select, textarea {
   padding: 24px 24px 12px 24px;
   background: white;
   border-radius: 15px;
+  overflow: hidden;
   gap: 16px;
 }
 
@@ -1290,8 +1291,8 @@ input, select, textarea {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding-right: 40px; /* Space for close button */
   gap: 10px;
+  margin-top: 10px; /* Space below close icon */
 }
 
 .treasury-modal-header h2 {
@@ -1315,6 +1316,7 @@ input, select, textarea {
   cursor: pointer;
   transition: opacity 0.2s ease;
   flex-shrink: 0;
+  margin-left: auto; /* Push to right end */
 }
 
 .treasury-new-btn:hover {
@@ -1591,6 +1593,7 @@ input, select, textarea {
   box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
   margin: 0 -24px -12px -24px;
   padding: 12px 24px;
+  border-radius: 0 0 15px 15px;
 }
 
 .treasury-action-cancel {

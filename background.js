@@ -52,6 +52,85 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Open URL and inject token after page loads (handles session persistence)
+  if (message.type === 'openUrlAndInjectToken') {
+    const { url, token, user } = message;
+    console.log('[Copus Extension BG] Opening URL and injecting token:', url);
+
+    (async () => {
+      try {
+        // Create the new tab
+        const tab = await chrome.tabs.create({ url });
+        console.log('[Copus Extension BG] Created tab:', tab.id);
+
+        if (token) {
+          // Wait for the tab to finish loading before injecting
+          const injectToken = async (tabId, attempts = 0) => {
+            if (attempts > 10) {
+              console.log('[Copus Extension BG] Max injection attempts reached');
+              return;
+            }
+
+            try {
+              // Check if content script is ready
+              await chrome.tabs.sendMessage(tabId, {
+                type: 'injectToken',
+                token: token,
+                user: user
+              });
+              console.log('[Copus Extension BG] Successfully injected token into tab');
+            } catch (error) {
+              // Content script might not be ready yet, retry after delay
+              console.log('[Copus Extension BG] Injection attempt', attempts + 1, 'failed, retrying...');
+              setTimeout(() => injectToken(tabId, attempts + 1), 500);
+            }
+          };
+
+          // Start injection attempts after a short delay for page to load
+          setTimeout(() => injectToken(tab.id), 1000);
+        }
+      } catch (error) {
+        console.error('[Copus Extension BG] Error opening URL:', error);
+      }
+    })();
+
+    return true;
+  }
+
+  // Fetch image via background script (bypasses CORS)
+  if (message.type === 'fetchImageAsDataUrl') {
+    (async () => {
+      try {
+        console.log('[Copus Extension BG] Fetching image:', message.url);
+        const response = await fetch(message.url);
+
+        if (!response.ok) {
+          sendResponse({ success: false, error: `HTTP ${response.status}` });
+          return;
+        }
+
+        const blob = await response.blob();
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          console.log('[Copus Extension BG] Image fetched, size:', blob.size, 'type:', blob.type);
+          sendResponse({ success: true, dataUrl, mimeType: blob.type, size: blob.size });
+        };
+
+        reader.onerror = () => {
+          sendResponse({ success: false, error: 'Failed to read image blob' });
+        };
+
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error('[Copus Extension BG] Image fetch failed:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
+  }
+
   // Proxy API requests through background script to avoid popup network issues
   if (message.type === 'apiRequest') {
     (async () => {

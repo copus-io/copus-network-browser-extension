@@ -17,6 +17,8 @@ const state = {
   selectedTreasuries: [], // Array of { id: number, name: string, spaceType: number }
   availableTreasuries: [], // All treasuries from API
   treasurySearchQuery: '', // Current search filter
+  treasuriesCacheTime: 0, // Timestamp of last treasury fetch
+  treasuriesFetchPromise: null, // In-flight fetch promise to avoid duplicate requests
   // x402 payment state
   payToVisit: false, // Payment toggle (default off)
   paymentAmount: '0.01' // Default payment amount in USD
@@ -216,12 +218,37 @@ function updateDetectedImagesButton(images) {
   }
 }
 
+// Helper function to fetch image via background script (bypasses CORS)
+async function fetchImageViaBackground(imageUrl) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { type: 'fetchImageAsDataUrl', url: imageUrl },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (!response || !response.success) {
+          reject(new Error(response?.error || 'Background fetch failed'));
+          return;
+        }
+
+        resolve({
+          dataUrl: response.dataUrl,
+          mimeType: response.mimeType,
+          size: response.size
+        });
+      }
+    );
+  });
+}
+
 // Helper function to convert data URL or image URL to File object
 async function convertImageToFile(imageSrc, fileName = 'cover-image.png') {
   try {
-    console.log('Converting image to file:', fileName);
+    console.log('[Copus Extension] Converting image to file:', fileName, 'source type:', imageSrc.substring(0, 50));
 
-    let response;
     if (imageSrc.startsWith('data:')) {
       // Handle data URLs (screenshots, uploaded files)
       const dataUrlParts = imageSrc.split(',');
@@ -236,22 +263,106 @@ async function convertImageToFile(imageSrc, fileName = 'cover-image.png') {
         uint8Array[i] = byteString.charCodeAt(i);
       }
 
-      return new File([arrayBuffer], fileName, { type: mimeType });
+      const file = new File([arrayBuffer], fileName, { type: mimeType });
+      console.log('[Copus Extension] Created file from data URL:', file.name, file.size, 'bytes');
+      return file;
     } else {
-      // Handle regular URLs (detected images)
-      response = await fetch(imageSrc);
-      if (!response.ok) {
-        throw new Error('Failed to fetch image from URL');
+      // Handle regular URLs (detected images) - may have CORS issues
+      console.log('[Copus Extension] Fetching external image URL:', imageSrc);
+
+      // Try direct fetch first
+      try {
+        const response = await fetch(imageSrc, { mode: 'cors' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        if (blob.size === 0) {
+          throw new Error('Empty blob received');
+        }
+
+        const mimeType = blob.type || 'image/png';
+        // Handle special MIME types like 'image/svg+xml' -> 'svg'
+        let extension = mimeType.split('/')[1] || 'png';
+        if (extension.includes('+')) {
+          extension = extension.split('+')[0]; // 'svg+xml' -> 'svg'
+        }
+        const file = new File([blob], `${fileName.split('.')[0]}.${extension}`, { type: mimeType });
+        console.log('[Copus Extension] Created file from direct URL fetch:', file.name, file.size, 'bytes');
+        return file;
+      } catch (fetchError) {
+        console.warn('[Copus Extension] Direct fetch failed (likely CORS), trying background script:', fetchError.message);
+
+        // Fallback 1: Use background script to fetch (bypasses CORS)
+        try {
+          const bgResult = await fetchImageViaBackground(imageSrc);
+          console.log('[Copus Extension] Background fetch succeeded, size:', bgResult.size);
+
+          // Convert data URL to File
+          const dataUrlParts = bgResult.dataUrl.split(',');
+          const mimeMatch = dataUrlParts[0].match(/data:([^;]+);/);
+          const mimeType = mimeMatch ? mimeMatch[1] : bgResult.mimeType || 'image/png';
+
+          const byteString = atob(dataUrlParts[1]);
+          const arrayBuffer = new ArrayBuffer(byteString.length);
+          const uint8Array = new Uint8Array(arrayBuffer);
+
+          for (let i = 0; i < byteString.length; i++) {
+            uint8Array[i] = byteString.charCodeAt(i);
+          }
+
+          // Handle special MIME types like 'image/svg+xml' -> 'svg'
+          let extension = mimeType.split('/')[1] || 'png';
+          if (extension.includes('+')) {
+            extension = extension.split('+')[0]; // 'svg+xml' -> 'svg'
+          }
+          const file = new File([arrayBuffer], `${fileName.split('.')[0]}.${extension}`, { type: mimeType });
+          console.log('[Copus Extension] Created file via background fetch:', file.name, file.size, 'bytes');
+          return file;
+        } catch (bgError) {
+          console.warn('[Copus Extension] Background fetch failed, trying canvas approach:', bgError.message);
+
+          // Fallback 2: Use canvas to convert image (works for cross-origin if image is already loaded)
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // Try to request with CORS
+
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+
+                canvas.toBlob((blob) => {
+                  if (blob && blob.size > 0) {
+                    const file = new File([blob], fileName, { type: 'image/png' });
+                    console.log('[Copus Extension] Created file via canvas:', file.name, file.size, 'bytes');
+                    resolve(file);
+                  } else {
+                    reject(new Error('Canvas toBlob failed - image may be tainted by CORS'));
+                  }
+                }, 'image/png', 0.95);
+              } catch (canvasError) {
+                reject(new Error('Canvas conversion failed: ' + canvasError.message));
+              }
+            };
+
+            img.onerror = () => {
+              reject(new Error('Failed to load image for canvas conversion'));
+            };
+
+            // Set src after handlers to ensure they fire
+            img.src = imageSrc;
+          });
+        }
       }
-
-      const blob = await response.blob();
-      const mimeType = blob.type || 'image/png';
-      const extension = mimeType.split('/')[1] || 'png';
-
-      return new File([blob], `${fileName.split('.')[0]}.${extension}`, { type: mimeType });
     }
   } catch (error) {
-    console.error('Error converting image to file:', error);
+    console.error('[Copus Extension] Error converting image to file:', error);
     throw new Error('Failed to convert image: ' + error.message);
   }
 }
@@ -903,8 +1014,10 @@ async function tryReadTokenFromCopusTabs() {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
-            const token = localStorage.getItem('copus_token');
-            const user = localStorage.getItem('copus_user');
+            // Check BOTH localStorage and sessionStorage
+            // Mainsite uses sessionStorage when "Remember me" is NOT checked
+            const token = localStorage.getItem('copus_token') || sessionStorage.getItem('copus_token');
+            const user = localStorage.getItem('copus_user') || sessionStorage.getItem('copus_user');
             return {
               token: token,
               user: user ? JSON.parse(user) : null
@@ -926,14 +1039,11 @@ async function tryReadTokenFromCopusTabs() {
             }
             return { token, user };
           } else {
-            // IMPORTANT: Website has no token - user logged out on main site
-            // Clear extension storage to sync logout state
-            console.log('[Copus Extension] No token found in copus tab - user logged out on main site');
-            if (chrome?.storage?.local) {
-              await chrome.storage.local.remove(['copus_token', 'copus_user']);
-              console.log('[Copus Extension] Cleared extension storage (synced logout from main site)');
-            }
-            return { token: null, user: null, loggedOut: true };
+            // No token in this tab - but DON'T clear extension storage!
+            // SessionStorage is tab-specific, so this tab might just not have the token
+            // The user could still be logged in on another tab or have a valid extension token
+            console.log('[Copus Extension] No token found in this copus tab (sessionStorage is tab-specific)');
+            // Continue to check other tabs instead of clearing
           }
         }
       } catch (error) {
@@ -1086,52 +1196,50 @@ async function loginUser() {
 /**
  * Fetch user's bindable spaces/treasuries from API
  * API: GET /client/article/bind/bindableSpaces
+ *
+ * Optimizations:
+ * - Uses cache (5 minute TTL) to avoid redundant fetches
+ * - Deduplicates in-flight requests
+ * - Direct fetch (faster than background script roundtrip)
  */
-async function fetchBindableSpaces() {
-  try {
-    console.log('[Copus Extension] Fetching bindable spaces...');
+const TREASURY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-    // Get authentication token
-    let result = { copus_token: null };
-    if (chrome?.storage?.local) {
-      result = await chrome.storage.local.get(['copus_token']);
-    } else {
-      result.copus_token = localStorage.getItem('copus_token');
-    }
+async function fetchBindableSpaces(forceRefresh = false) {
+  // Check cache first (unless force refresh)
+  const now = Date.now();
+  if (!forceRefresh && state.availableTreasuries.length > 0 && (now - state.treasuriesCacheTime) < TREASURY_CACHE_TTL) {
+    console.log('[Copus Extension] Using cached treasuries (' + state.availableTreasuries.length + ' items, cached ' + Math.round((now - state.treasuriesCacheTime) / 1000) + 's ago)');
+    return state.availableTreasuries;
+  }
 
-    if (!result.copus_token) {
-      throw new Error('Authentication required');
-    }
+  // If there's already a fetch in progress, return that promise (deduplication)
+  if (state.treasuriesFetchPromise) {
+    console.log('[Copus Extension] Returning existing fetch promise');
+    return state.treasuriesFetchPromise;
+  }
 
-    const apiBaseUrl = getApiBaseUrl();
-    const url = `${apiBaseUrl}/client/article/bind/bindableSpaces`;
-    console.log('[Copus Extension] Fetching treasuries from:', url);
-
-    // Try using background script for API request (avoids popup network issues)
-    let responseData;
+  // Create the fetch promise
+  state.treasuriesFetchPromise = (async () => {
     try {
-      console.log('[Copus Extension] Trying background script for API request...');
-      const bgResponse = await chrome.runtime.sendMessage({
-        type: 'apiRequest',
-        url: url,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${result.copus_token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
+      console.log('[Copus Extension] Fetching bindable spaces...');
 
-      if (bgResponse && bgResponse.success) {
-        console.log('[Copus Extension] Background script request succeeded');
-        responseData = bgResponse.data;
+      // Get authentication token
+      let result = { copus_token: null };
+      if (chrome?.storage?.local) {
+        result = await chrome.storage.local.get(['copus_token']);
       } else {
-        throw new Error(bgResponse?.error || 'Background request failed');
+        result.copus_token = localStorage.getItem('copus_token');
       }
-    } catch (bgError) {
-      console.warn('[Copus Extension] Background request failed, falling back to direct fetch:', bgError.message);
 
-      // Fallback to direct fetch
+      if (!result.copus_token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiBaseUrl = getApiBaseUrl();
+      const url = `${apiBaseUrl}/client/article/bind/bindableSpaces`;
+      console.log('[Copus Extension] Fetching treasuries from:', url);
+
+      // Direct fetch (faster than background script roundtrip)
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -1145,35 +1253,52 @@ async function fetchBindableSpaces() {
         throw new Error(`Failed to fetch treasuries (${response.status})`);
       }
 
-      responseData = await response.json();
+      const responseData = await response.json();
+      console.log('[Copus Extension] Bindable spaces response:', responseData);
+
+      // Handle different API response formats
+      let spacesArray = [];
+      if (responseData?.data && Array.isArray(responseData.data)) {
+        spacesArray = responseData.data;
+      } else if (Array.isArray(responseData)) {
+        spacesArray = responseData;
+      }
+
+      // Sort: Treasury (spaceType 1) first, then Curations (spaceType 2), then by ID descending
+      spacesArray.sort((a, b) => {
+        if (a.spaceType === 1 && b.spaceType !== 1) return -1;
+        if (a.spaceType !== 1 && b.spaceType === 1) return 1;
+        if (a.spaceType === 2 && b.spaceType !== 2) return -1;
+        if (a.spaceType !== 2 && b.spaceType === 2) return 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
+      state.availableTreasuries = spacesArray;
+      state.treasuriesCacheTime = Date.now();
+      console.log('[Copus Extension] Found', spacesArray.length, 'treasuries');
+
+      return spacesArray;
+    } catch (error) {
+      console.error('[Copus Extension] Error fetching bindable spaces:', error);
+      throw error;
+    } finally {
+      state.treasuriesFetchPromise = null;
     }
+  })();
 
-    console.log('[Copus Extension] Bindable spaces response:', responseData);
+  return state.treasuriesFetchPromise;
+}
 
-    // Handle different API response formats
-    let spacesArray = [];
-    if (responseData?.data && Array.isArray(responseData.data)) {
-      spacesArray = responseData.data;
-    } else if (Array.isArray(responseData)) {
-      spacesArray = responseData;
-    }
-
-    // Sort: Treasury (spaceType 1) first, then Curations (spaceType 2), then by ID descending
-    spacesArray.sort((a, b) => {
-      if (a.spaceType === 1 && b.spaceType !== 1) return -1;
-      if (a.spaceType !== 1 && b.spaceType === 1) return 1;
-      if (a.spaceType === 2 && b.spaceType !== 2) return -1;
-      if (a.spaceType !== 2 && b.spaceType === 2) return 1;
-      return (b.id || 0) - (a.id || 0);
+/**
+ * Prefetch treasuries in background (non-blocking)
+ * Call this early to warm up the cache
+ */
+function prefetchTreasuries() {
+  if (state.isLoggedIn) {
+    console.log('[Copus Extension] Prefetching treasuries in background...');
+    fetchBindableSpaces().catch(err => {
+      console.log('[Copus Extension] Prefetch failed (will retry when modal opens):', err.message);
     });
-
-    state.availableTreasuries = spacesArray;
-    console.log('[Copus Extension] Found', spacesArray.length, 'treasuries');
-
-    return spacesArray;
-  } catch (error) {
-    console.error('[Copus Extension] Error fetching bindable spaces:', error);
-    throw error;
   }
 }
 
@@ -1265,9 +1390,6 @@ async function openTreasuryModal() {
   elements.treasurySearchInput.value = '';
   state.treasurySearchQuery = '';
 
-  // Show loading state
-  elements.treasuryList.innerHTML = '<div class="treasury-loading">Loading treasuries...</div>';
-
   // Hide create form
   elements.treasuryCreateForm.style.display = 'none';
   elements.newTreasuryName.value = '';
@@ -1275,15 +1397,29 @@ async function openTreasuryModal() {
   // Update save button text
   updateSaveButtonText();
 
-  try {
-    // Fetch treasuries
-    await fetchBindableSpaces();
-
-    // Render the list
+  // If we have cached data, show it immediately (no loading state)
+  if (state.availableTreasuries.length > 0) {
+    console.log('[Copus Extension] Showing cached treasuries immediately');
     renderTreasuryList();
-  } catch (error) {
-    console.error('[Copus Extension] Error loading treasuries:', error);
-    elements.treasuryList.innerHTML = '<div class="treasury-empty">Failed to load treasuries</div>';
+
+    // Still fetch in background to ensure data is fresh (but don't block UI)
+    fetchBindableSpaces().then(() => {
+      // Re-render if data changed
+      renderTreasuryList();
+    }).catch(err => {
+      console.log('[Copus Extension] Background refresh failed:', err.message);
+    });
+  } else {
+    // No cached data - show loading and wait for fetch
+    elements.treasuryList.innerHTML = '<div class="treasury-loading">Loading treasuries...</div>';
+
+    try {
+      await fetchBindableSpaces();
+      renderTreasuryList();
+    } catch (error) {
+      console.error('[Copus Extension] Error loading treasuries:', error);
+      elements.treasuryList.innerHTML = '<div class="treasury-empty">Failed to load treasuries</div>';
+    }
   }
 }
 
@@ -1324,10 +1460,22 @@ function renderTreasuryList() {
     const isDefaultSpace = treasury.spaceType === 1 || treasury.spaceType === 2 ||
       treasury.name === 'Default Collections Space' || treasury.name === 'Default Curations Space';
 
-    // Determine avatar - use user's faceUrl for default spaces
+    // Determine avatar - matching main site's logic:
+    // For default Treasury/Curations (spaceType 1 & 2), use user's profile image
+    // For custom spaces, use the first article's cover image from this collection
     let avatarHtml;
-    if (isDefaultSpace && state.userInfo?.faceUrl) {
-      avatarHtml = `<img src="${state.userInfo.faceUrl}" alt="${displayName}" onerror="this.parentElement.innerHTML='<span class=\\'treasury-avatar-letter\\'>${firstLetter}</span>'" />`;
+    let coverImage = '';
+
+    if (isDefaultSpace) {
+      // Default space: use user's profile image
+      coverImage = state.userInfo?.faceUrl || '';
+    } else {
+      // Custom space: use first article's cover image
+      coverImage = treasury.data?.[0]?.coverUrl || '';
+    }
+
+    if (coverImage) {
+      avatarHtml = `<img src="${coverImage}" alt="${displayName}" onerror="this.parentElement.innerHTML='<span class=\\'treasury-avatar-letter\\'>${firstLetter}</span>'" />`;
     } else {
       avatarHtml = `<span class="treasury-avatar-letter">${firstLetter}</span>`;
     }
@@ -1444,8 +1592,9 @@ async function handleCreateTreasury() {
 
     const newTreasury = await createNewTreasury(name);
 
-    // Add to available treasuries
+    // Add to available treasuries and update cache time
     state.availableTreasuries.unshift(newTreasury);
+    state.treasuriesCacheTime = Date.now(); // Update cache since we modified the list
 
     // Auto-select the new treasury
     state.selectedTreasuries.push({
@@ -1627,10 +1776,8 @@ function validateForm() {
     return false;
   }
 
-  if (state.selectedTreasuries.length === 0) {
-    setStatus('Please select at least one treasury.', 'error');
-    return false;
-  }
+  // Treasury selection is optional - if not selected, backend auto-binds to user's Curations
+  // (Same behavior as mainsite)
 
   // Validate payment amount if payment is enabled
   if (state.payToVisit) {
@@ -1790,38 +1937,58 @@ async function handlePublish() {
     let coverUrl;
     let fileToUpload;
 
+    // Debug: Log cover image state
+    console.log('[Copus Extension] Cover image state:', {
+      coverSourceType: state.coverSourceType,
+      hasCoverImage: !!state.coverImage,
+      hasCoverImageSrc: !!state.coverImage?.src,
+      coverImageSrcType: state.coverImage?.src?.substring(0, 30),
+      hasCoverImageFile: !!state.coverImageFile
+    });
+
     // Determine how to handle the cover image based on source type
     if (state.coverSourceType === 'upload' && state.coverImageFile) {
       // Use original file for uploads
       fileToUpload = state.coverImageFile;
-      console.log('Using original uploaded file for S3 upload');
+      console.log('[Copus Extension] Using original uploaded file:', fileToUpload.name, fileToUpload.size, 'bytes');
     } else if (state.coverImage && state.coverImage.src) {
       // Convert screenshot or detected image to file
       const fileName = state.coverSourceType === 'screenshot'
         ? 'screenshot.png'
         : 'detected-image.jpg';
 
-      console.log('Converting', state.coverSourceType, 'image to file for S3 upload');
+      console.log('[Copus Extension] Converting', state.coverSourceType, 'image to file');
+      console.log('[Copus Extension] Image src preview:', state.coverImage.src.substring(0, 100));
 
       try {
         fileToUpload = await convertImageToFile(state.coverImage.src, fileName);
+        console.log('[Copus Extension] Converted to file:', fileToUpload.name, fileToUpload.size, 'bytes');
       } catch (convertError) {
-        console.error('Image conversion failed:', convertError);
+        console.error('[Copus Extension] Image conversion failed:', convertError);
         throw new Error('Image processing failed: ' + convertError.message);
       }
     } else {
+      console.error('[Copus Extension] No cover image available in state');
       throw new Error('No cover image available');
+    }
+
+    // Validate file before upload
+    if (!fileToUpload || fileToUpload.size === 0) {
+      console.error('[Copus Extension] Invalid file to upload:', fileToUpload);
+      throw new Error('Image file is empty or invalid');
     }
 
     // Upload the image to S3
     try {
+      console.log('[Copus Extension] Starting S3 upload...');
       coverUrl = await uploadImageToS3(fileToUpload);
+      console.log('[Copus Extension] S3 upload complete, URL:', coverUrl);
 
       if (!coverUrl) {
         throw new Error('S3 upload returned empty URL');
       }
     } catch (uploadError) {
-      console.error('S3 upload failed:', uploadError);
+      console.error('[Copus Extension] S3 upload failed:', uploadError);
       throw new Error('Image upload failed: ' + uploadError.message);
     }
 
@@ -1830,9 +1997,17 @@ async function handlePublish() {
       coverUrl: coverUrl,
       targetUrl: state.pageUrl,
       title: elements.pageTitleInput.value.trim() || state.pageTitle,
-      // Include spaceIds for treasury binding
-      spaceIds: state.selectedTreasuries.map(t => t.id)
+      // categoryId is required by the API - use 0 as default (uncategorized)
+      categoryId: 0,
+      // Only include spaceIds if treasuries are selected (optional)
+      // If not provided, backend auto-binds to user's Curations
+      ...(state.selectedTreasuries.length > 0 ? {
+        spaceIds: state.selectedTreasuries.map(t => t.id)
+      } : {})
     };
+
+    // Debug: Log the full payload being sent
+    console.log('[Copus Extension] Full publish payload:', JSON.stringify(payload, null, 2));
 
     // Add x402 payment fields if payment is enabled
     // IMPORTANT: Format must match mainsite Create.tsx exactly
@@ -1874,15 +2049,29 @@ async function handlePublish() {
       }
 
       if (articleUuid) {
-        // Open the work page and close extension
+        // Open the work page in a new tab
         const workUrl = `https://copus.network/work/${articleUuid}`;
 
-        if (chrome?.tabs?.create) {
-          chrome.tabs.create({ url: workUrl });
-        } else {
-          window.open(workUrl, '_blank');
-        }
+        // Get current auth data from extension storage to inject into target tab
+        const authData = await chrome.storage.local.get(['copus_token', 'copus_user']);
+        console.log('[Copus Extension] Auth data for redirect:', {
+          hasToken: !!authData.copus_token,
+          hasUser: !!authData.copus_user
+        });
 
+        // Always create a new tab for the work page
+        console.log('[Copus Extension] Creating new tab for work page:', workUrl);
+
+        // Send message to background script to create tab and inject token
+        chrome.runtime.sendMessage({
+          type: 'openUrlAndInjectToken',
+          url: workUrl,
+          token: authData.copus_token,
+          user: authData.copus_user
+        });
+
+        // Small delay before closing to ensure messages are sent
+        await new Promise(resolve => setTimeout(resolve, 100));
         window.close();
       }
     } catch (publishError) {
@@ -2272,6 +2461,9 @@ async function initialize() {
           state.userInfo = result.copus_user;
           state.isLoggedIn = true;
           updateUserAvatar(result.copus_user);
+
+          // Prefetch treasuries in background for faster modal opening
+          prefetchTreasuries();
         }
       } catch (error) {
         console.log('[Copus Extension] Could not load user from storage:', error);
