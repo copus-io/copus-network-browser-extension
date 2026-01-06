@@ -600,9 +600,19 @@ function showImageSelection() {
 
       button.addEventListener('click', function() {
         console.log('Image selected:', image.src);
-        setCoverImage({ src: image.src }, 'page');
-        // No status message needed for image selection
-        goBackToMain();
+        // Show cropper for detected image (same as uploaded image)
+        imageCropper.showFromUrl(image.src, (croppedFile) => {
+          if (croppedFile) {
+            // Cropping succeeded - use cropped image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              setCoverImage({ src: e.target.result }, 'page', croppedFile);
+              goBackToMain();
+            };
+            reader.readAsDataURL(croppedFile);
+          }
+          // If cancelled (croppedFile is null), stay in image selection view
+        });
       });
 
       elements.imageSelectionGrid.appendChild(button);
@@ -2133,6 +2143,51 @@ class ImageCropper {
     reader.readAsDataURL(file);
   }
 
+  // Show cropper from a URL (for detected images)
+  showFromUrl(imageUrl, onCrop) {
+    this.onCropCallback = onCrop;
+
+    // Try to load image directly first
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      this.loadedImage = img;
+      this.initializeCropper(img);
+      this.modal.style.display = 'flex';
+    };
+
+    img.onerror = () => {
+      // If direct loading fails (CORS), fetch via background script
+      console.log('[Cropper] Direct load failed, fetching via background script');
+      chrome.runtime.sendMessage({
+        type: 'fetchImageAsDataUrl',
+        url: imageUrl
+      }, (response) => {
+        if (response && response.success && response.dataUrl) {
+          const bgImg = new Image();
+          bgImg.onload = () => {
+            this.loadedImage = bgImg;
+            this.initializeCropper(bgImg);
+            this.modal.style.display = 'flex';
+          };
+          bgImg.onerror = () => {
+            console.error('[Cropper] Failed to load image from background fetch');
+            // Fall back to using the image without cropping
+            onCrop(null);
+          };
+          bgImg.src = response.dataUrl;
+        } else {
+          console.error('[Cropper] Background fetch failed:', response?.error);
+          // Fall back to using the image without cropping
+          onCrop(null);
+        }
+      });
+    };
+
+    img.src = imageUrl;
+  }
+
   hide() {
     this.modal.style.display = 'none';
   }
@@ -2343,6 +2398,11 @@ class ImageCropper {
 
   handleCancel() {
     this.hide();
+    // Call callback with null to indicate cancellation
+    if (this.onCropCallback) {
+      this.onCropCallback(null);
+      this.onCropCallback = null;
+    }
   }
 }
 
@@ -2358,11 +2418,14 @@ function handleFileUpload(event) {
 
   // Show cropper instead of directly setting image
   imageCropper.show(file, (croppedFile) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCoverImage({ src: reader.result }, 'upload', croppedFile);
-    };
-    reader.readAsDataURL(croppedFile);
+    if (croppedFile) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setCoverImage({ src: reader.result }, 'upload', croppedFile);
+      };
+      reader.readAsDataURL(croppedFile);
+    }
+    // If cancelled (croppedFile is null), do nothing - keep current cover image
   });
 
   event.target.value = '';
