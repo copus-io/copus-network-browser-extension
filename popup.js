@@ -2050,7 +2050,8 @@ async function handlePublish() {
       }
 
       // Open the work page in a new tab immediately
-      const workUrl = `https://copus.network/work/${articleUuid}`;
+      // Add ?published=true to trigger success toast on mainsite
+      const workUrl = `https://copus.network/work/${articleUuid}?published=true`;
       console.log('[Copus Extension] Redirecting to work page:', workUrl);
 
       // Get current auth data from extension storage to inject into target tab
