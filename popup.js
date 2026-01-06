@@ -1791,68 +1791,6 @@ function validateForm() {
   return true;
 }
 
-/**
- * Verify that an article exists on copus.network
- * Polls the API to check if the article is accessible
- * @param {string} articleUuid - The UUID of the article to verify
- * @param {number} maxAttempts - Maximum number of verification attempts
- * @param {number} delayMs - Delay between attempts in milliseconds
- * @returns {Promise<{exists: boolean, error?: string}>}
- */
-async function verifyArticleExists(articleUuid, maxAttempts = 5, delayMs = 1000) {
-  const apiBaseUrl = getApiBaseUrl();
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      console.log(`[Copus Extension] Verifying article exists (attempt ${attempt}/${maxAttempts}):`, articleUuid);
-
-      // Try to fetch article info from the API
-      const response = await fetch(`${apiBaseUrl}/client/article/info?uuid=${articleUuid}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('[Copus Extension] Article verification response:', data);
-
-        // Check if the API returned valid article data
-        // status 1 means success, and data should contain article info
-        if (data.status === 1 && data.data) {
-          console.log('[Copus Extension] Article verified successfully');
-          return { exists: true };
-        }
-
-        // If status indicates article not found or error
-        if (data.status !== 1) {
-          console.log('[Copus Extension] Article not found yet, status:', data.status);
-        }
-      } else if (response.status === 404) {
-        console.log('[Copus Extension] Article not found (404)');
-      } else {
-        console.log('[Copus Extension] Verification request failed with status:', response.status);
-      }
-
-      // Wait before next attempt (except on last attempt)
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    } catch (error) {
-      console.error('[Copus Extension] Verification attempt failed:', error);
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-
-  return {
-    exists: false,
-    error: 'Article could not be verified on copus.network. It may not have been published successfully.'
-  };
-}
-
 async function publishToCopus(payload) {
   const apiBaseUrl = getApiBaseUrl();
   const endpoint = `${apiBaseUrl}/client/author/article/edit`;
@@ -2108,31 +2046,12 @@ async function handlePublish() {
       }
 
       if (!articleUuid) {
-        throw new Error('No article ID returned from server. Publishing may have failed.');
+        throw new Error('No article ID returned from server.');
       }
 
-      // Verify the article actually exists on copus.network before showing success
-      console.log('[Copus Extension] Verifying article was published:', articleUuid);
-
-      // Update button to show verification status
-      elements.publishButton.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span>Verifying...</span>
-        </div>
-      `;
-
-      const verification = await verifyArticleExists(articleUuid);
-
-      if (!verification.exists) {
-        throw new Error(verification.error || 'Failed to verify article on copus.network. Publishing may have failed.');
-      }
-
-      // Only show success after verification passes
-      const successMessage = 'Done! Thank you for surfacing an internet gem!';
-      showToast(successMessage, 'success');
-
-      // Open the work page in a new tab
+      // Open the work page in a new tab immediately
       const workUrl = `https://copus.network/work/${articleUuid}`;
+      console.log('[Copus Extension] Redirecting to work page:', workUrl);
 
       // Get current auth data from extension storage to inject into target tab
       const authData = await chrome.storage.local.get(['copus_token', 'copus_user']);
@@ -2140,9 +2059,6 @@ async function handlePublish() {
         hasToken: !!authData.copus_token,
         hasUser: !!authData.copus_user
       });
-
-      // Always create a new tab for the work page
-      console.log('[Copus Extension] Creating new tab for work page:', workUrl);
 
       // Send message to background script to create tab and inject token
       chrome.runtime.sendMessage({
@@ -2162,7 +2078,7 @@ async function handlePublish() {
 
   } catch (error) {
     console.error('Publishing error:', error);
-    showToast('Publishing failed: ' + error.message, 'error');
+    showToast('Publishing failed. Please contact handuo@server31.io', 'error');
   } finally {
     elements.publishButton.disabled = false;
     elements.publishButton.innerHTML = 'Publish';
