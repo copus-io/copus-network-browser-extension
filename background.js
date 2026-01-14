@@ -1,3 +1,56 @@
+// Toggle sidebar in the active tab
+async function toggleSidebar(tab) {
+  if (!tab || !tab.id) {
+    console.error('[Copus Extension BG] No valid tab to toggle sidebar');
+    return;
+  }
+
+  // Don't inject into chrome:// or edge:// pages
+  if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:'))) {
+    console.log('[Copus Extension BG] Cannot inject into browser internal pages');
+    return;
+  }
+
+  try {
+    // Try to send message to content script
+    await chrome.tabs.sendMessage(tab.id, { type: 'toggleSidebar' });
+    console.log('[Copus Extension BG] Toggled sidebar in tab:', tab.id);
+  } catch (error) {
+    // Content script might not be loaded, inject it first
+    console.log('[Copus Extension BG] Content script not ready, injecting...');
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['contentScript.js']
+      });
+      // Wait a bit for script to initialize, then toggle
+      setTimeout(async () => {
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type: 'toggleSidebar' });
+        } catch (e) {
+          console.error('[Copus Extension BG] Failed to toggle after injection:', e);
+        }
+      }, 100);
+    } catch (injectError) {
+      console.error('[Copus Extension BG] Failed to inject content script:', injectError);
+    }
+  }
+}
+
+// Handle extension icon click
+chrome.action.onClicked.addListener((tab) => {
+  console.log('[Copus Extension BG] Icon clicked');
+  toggleSidebar(tab);
+});
+
+// Handle keyboard shortcut
+chrome.commands.onCommand.addListener((command, tab) => {
+  console.log('[Copus Extension BG] Command received:', command);
+  if (command === 'toggle-sidebar') {
+    toggleSidebar(tab);
+  }
+});
+
 // Create context menu when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -8,10 +61,10 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'copus-publish') {
-    // Open the same popup as the toolbar icon
-    chrome.action.openPopup();
+    // Toggle sidebar instead of opening popup
+    toggleSidebar(tab);
   }
 });
 
