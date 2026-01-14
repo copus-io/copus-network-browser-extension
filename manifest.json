@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "Copus - Internet Treasure Map",
   "description": "Save and share web finds. Set pay-to-unlock via x402 and earn from quality curation.",
-  "version": "1.9.0",
+  "version": "1.10.3",
   "permissions": [
     "activeTab",
     "tabs",
     "scripting",
     "tabCapture",
     "contextMenus",
-    "storage"
+    "storage",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://api-prod.copus.network/*",
@@ -35,6 +36,9 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "commands": {
     "toggle-sidebar": {

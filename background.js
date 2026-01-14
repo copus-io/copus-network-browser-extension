@@ -1,58 +1,38 @@
-// Toggle sidebar in the active tab
-async function toggleSidebar(tab) {
+// Toggle the side panel
+async function toggleSidePanel(tab) {
   if (!tab || !tab.id) {
-    console.error('[Copus Extension BG] No valid tab to toggle sidebar');
-    return;
-  }
-
-  // Don't inject into chrome:// or edge:// pages
-  if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:'))) {
-    console.log('[Copus Extension BG] Cannot inject into browser internal pages');
+    console.error('[Copus Extension BG] No valid tab to toggle side panel');
     return;
   }
 
   try {
-    // Try to send message to content script
-    await chrome.tabs.sendMessage(tab.id, { type: 'toggleSidebar' });
-    console.log('[Copus Extension BG] Toggled sidebar in tab:', tab.id);
+    // Open the side panel for this tab
+    await chrome.sidePanel.open({ tabId: tab.id });
+    console.log('[Copus Extension BG] Opened side panel for tab:', tab.id);
   } catch (error) {
-    // Content script might not be loaded, inject it first
-    console.log('[Copus Extension BG] Content script not ready, injecting...');
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['contentScript.js']
-      });
-      // Wait a bit for script to initialize, then toggle
-      setTimeout(async () => {
-        try {
-          await chrome.tabs.sendMessage(tab.id, { type: 'toggleSidebar' });
-        } catch (e) {
-          console.error('[Copus Extension BG] Failed to toggle after injection:', e);
-        }
-      }, 100);
-    } catch (injectError) {
-      console.error('[Copus Extension BG] Failed to inject content script:', injectError);
-    }
+    console.error('[Copus Extension BG] Failed to open side panel:', error);
   }
 }
 
-// Handle extension icon click
+// Handle extension icon click - open side panel
 chrome.action.onClicked.addListener((tab) => {
   console.log('[Copus Extension BG] Icon clicked');
-  toggleSidebar(tab);
+  toggleSidePanel(tab);
 });
 
 // Handle keyboard shortcut
 chrome.commands.onCommand.addListener((command, tab) => {
   console.log('[Copus Extension BG] Command received:', command);
   if (command === 'toggle-sidebar') {
-    toggleSidebar(tab);
+    toggleSidePanel(tab);
   }
 });
 
 // Create context menu when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
+  // Set side panel to open on action click
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
   chrome.contextMenus.create({
     id: 'copus-publish',
     title: 'Publish to Copus',
@@ -63,8 +43,8 @@ chrome.runtime.onInstalled.addListener(() => {
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'copus-publish') {
-    // Toggle sidebar instead of opening popup
-    toggleSidebar(tab);
+    // Open side panel
+    toggleSidePanel(tab);
   }
 });
 
