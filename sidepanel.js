@@ -1010,6 +1010,12 @@ function renderResultItems(items, type) {
           <p class="search-result-title">${escapeHtml(title)}</p>
           <p class="search-result-meta">${escapeHtml(meta)}</p>
         </div>
+        <button class="search-result-copy" data-copy-url="${url}" title="Copy link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+        </button>
       </div>
     `;
   }).join('');
@@ -1108,6 +1114,20 @@ function initSearchEventListeners() {
     if (e.target.classList.contains('search-load-more')) {
       const type = e.target.dataset.type;
       if (type) loadMoreResults(type);
+    }
+    // Copy link button
+    const copyButton = e.target.closest('.search-result-copy');
+    if (copyButton) {
+      e.stopPropagation();
+      const url = copyButton.dataset.copyUrl;
+      if (url) {
+        navigator.clipboard.writeText(url).then(() => {
+          showToast('Link copied', 'success');
+        }).catch(() => {
+          showToast('Failed to copy link', 'error');
+        });
+      }
+      return;
     }
     // Search result items
     const resultItem = e.target.closest('.search-result-item');

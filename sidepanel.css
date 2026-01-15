@@ -1910,6 +1910,32 @@ input, select, textarea {
   white-space: nowrap;
 }
 
+/* Copy Link Button */
+.search-result-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #999;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  align-self: center;
+}
+
+.search-result-copy:hover {
+  background: #e8e8e8;
+  color: #333;
+}
+
+.search-result-copy:active {
+  transform: scale(0.95);
+}
+
 .search-result-type {
   display: inline-block;
   font-size: 10px;
