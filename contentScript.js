@@ -183,37 +183,22 @@ function collectPageImages() {
   const uniqueSources = new Set();
   const images = [];
 
-  // Special handling for Copus work pages - cover image is a background-image
-  const isCopusWorkPage = window.location.hostname.includes('copus.network') &&
-                          window.location.pathname.startsWith('/work/');
-
-  if (isCopusWorkPage) {
-    // Find the cover image div (has aspect-[1.78] class and background-image)
-    const coverDivs = document.querySelectorAll('[class*="aspect-"][class*="bg-cover"], [class*="rounded-lg"][class*="bg-cover"]');
-    coverDivs.forEach(div => {
-      const style = window.getComputedStyle(div);
-      const bgImage = style.backgroundImage;
-      if (bgImage && bgImage !== 'none') {
-        // Extract URL from url("...")
-        const match = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
-        if (match && match[1]) {
-          const src = match[1];
-          // Skip placeholder images
-          if (!src.includes('animaapp.com') && !uniqueSources.has(src)) {
-            uniqueSources.add(src);
-            // Add as first image with special flag for cover
-            images.unshift({
-              src: src,
-              width: 800, // Typical cover dimensions
-              height: 450,
-              isCover: true
-            });
-          }
-        }
-      }
-    });
+  // First, check for og:image (standard SEO meta tag) - highest priority
+  const ogImage = document.querySelector("meta[property='og:image']");
+  if (ogImage && ogImage.content) {
+    const ogSrc = getAbsoluteUrl(ogImage.content);
+    if (ogSrc && !uniqueSources.has(ogSrc)) {
+      images.push({
+        src: ogSrc,
+        width: 0,
+        height: 0,
+        isOgImage: true
+      });
+      uniqueSources.add(ogSrc);
+    }
   }
 
+  // Then collect all page images
   rawImages.forEach((image) => {
     if (!image || !image.src) {
       return;
@@ -232,22 +217,6 @@ function collectPageImages() {
       height: image.naturalHeight || image.height || 0
     });
   });
-
-  // Only add og:image if we didn't find a cover image on Copus work pages
-  const hasCopusCover = images.some(img => img.isCover);
-  const ogImage = document.querySelector("meta[property='og:image']");
-  if (ogImage && ogImage.content && !hasCopusCover) {
-    const ogSrc = getAbsoluteUrl(ogImage.content);
-
-    if (!uniqueSources.has(ogSrc)) {
-      images.unshift({
-        src: ogSrc,
-        width: 0,
-        height: 0
-      });
-      uniqueSources.add(ogSrc);
-    }
-  }
 
   return images;
 }

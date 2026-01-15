@@ -197,59 +197,25 @@ function determineMainImage(images) {
     return null;
   }
 
-  // First, check for explicitly marked cover images (from Copus work pages)
-  const coverImage = images.find(img => img.isCover === true);
-  if (coverImage) {
-    return coverImage;
-  }
-
-  // Then, check for og:image (added first with width/height = 0 by content script)
-  const ogImage = images.find(img => img.width === 0 && img.height === 0);
+  // First priority: og:image (standard SEO meta tag)
+  const ogImage = images.find(img => img.isOgImage === true);
   if (ogImage) {
     return ogImage;
   }
 
-  // Filter and score images
+  // Fallback: find the largest suitable image
   const scoredImages = images
     .filter(img => {
-      // Filter out tiny images (likely icons)
       const width = img.width || 0;
       const height = img.height || 0;
-      if (width < 100 || height < 100) return false;
-
-      // Filter out small square images (likely profile pics/avatars)
-      const aspectRatio = width / height;
-      const isSquare = aspectRatio >= 0.9 && aspectRatio <= 1.1;
-      const isSmall = width < 200 && height < 200;
-      if (isSquare && isSmall) return false;
-
-      return true;
+      // Filter out tiny images
+      return width >= 100 && height >= 100;
     })
-    .map(img => {
-      const width = img.width || 0;
-      const height = img.height || 0;
-      const area = width * height;
-      const aspectRatio = width / height;
-
-      // Score calculation:
-      // - Prefer larger images (area)
-      // - Prefer landscape/wide images (typical cover images)
-      // - Penalize very square small images
-      let score = area;
-
-      // Bonus for landscape images (typical cover ratio)
-      if (aspectRatio >= 1.3 && aspectRatio <= 2.5) {
-        score *= 1.5;
-      }
-
-      // Bonus for large images
-      if (width >= 600 || height >= 400) {
-        score *= 1.3;
-      }
-
-      return { ...img, score };
-    })
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      const areaA = (a.width || 0) * (a.height || 0);
+      const areaB = (b.width || 0) * (b.height || 0);
+      return areaB - areaA;
+    });
 
   return scoredImages[0] || images[0] || null;
 }
@@ -2992,17 +2958,7 @@ if (chrome?.tabs?.onUpdated) {
 
         // Load page data for the new URL
         if (isValidContentScriptUrl(tab.url)) {
-          // For Copus SPA pages, use retry mechanism since React needs time to render
-          const isCopusPage = tab.url.includes('copus.network');
-          if (isCopusPage) {
-            // Retry a few times with short delays for SPA content
-            loadPageDataWithRetry(tabId, 3, 200);
-          } else {
-            // For other pages, single attempt with small delay
-            setTimeout(() => {
-              loadPageData(tabId).catch(() => {});
-            }, 100);
-          }
+          loadPageData(tabId).catch(() => {});
         } else {
           state.images = [];
           updateDetectedImagesButton([]);
@@ -3010,25 +2966,6 @@ if (chrome?.tabs?.onUpdated) {
       }
     }
   });
-}
-
-// Load page data with retry for SPA pages
-async function loadPageDataWithRetry(tabId, maxRetries, delay) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      await loadPageData(tabId);
-      // Check if we got a cover image
-      if (state.coverImage && state.coverImage.src) {
-        return; // Success!
-      }
-    } catch (e) {
-      // Ignore errors, will retry
-    }
-    // Wait before retry
-    if (i < maxRetries - 1) {
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
 }
 
 // Reset form fields when switching to a new tab
