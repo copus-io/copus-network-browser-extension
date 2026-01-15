@@ -62,6 +62,25 @@ body {
   gap: 12px;
 }
 
+.search-icon {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.search-icon:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: scale(1.1);
+}
+
+.search-icon:hover svg path {
+  fill: #333333;
+}
+
 .notification-bell {
   position: relative;
   cursor: pointer;

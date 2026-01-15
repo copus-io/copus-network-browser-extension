@@ -80,6 +80,9 @@ function cacheElements() {
   elements.imageSelectionGrid = document.getElementById('image-selection-grid');
   elements.goBackButton = document.getElementById('go-back-button');
 
+  // Search icon
+  elements.searchIcon = document.getElementById('search-icon');
+
   // Notification elements
   elements.notificationBell = document.getElementById('notification-bell');
   elements.notificationBadge = document.getElementById('notification-badge');
@@ -729,14 +732,23 @@ function updateNotificationBadge(count) {
   }
 }
 
-function handleNotificationClick() {
+function handleSearchClick() {
+  // Open the mainsite with search query param to trigger search modal
+  if (chrome?.tabs?.create) {
+    chrome.tabs.create({
+      url: 'https://copus.network/?search=true'
+    });
+  } else {
+    window.open('https://copus.network/?search=true', '_blank');
+  }
+}
 
+function handleNotificationClick() {
   if (chrome?.tabs?.create) {
     chrome.tabs.create({
       url: 'https://copus.network/notification'
     });
   } else {
-    // Fallback - open in same window
     window.open('https://copus.network/notification', '_blank');
   }
 
@@ -2392,6 +2404,11 @@ async function initialize() {
 
   // Add treasury selection event listeners
   initTreasuryEventListeners();
+
+  // Add search icon event listener
+  if (elements.searchIcon) {
+    elements.searchIcon.addEventListener('click', handleSearchClick);
+  }
 
   // Add notification bell event listener
   if (elements.notificationBell) {
