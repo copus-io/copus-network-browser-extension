@@ -2749,53 +2749,50 @@ async function initialize() {
     elements.coverRemove.hidden = true;
   }
 
-  // Initialize authentication token
-  initializeTestToken();
+  // FAST PATH: Check local storage synchronously first for instant UI
+  let hasStoredToken = false;
+  let storedUser = null;
 
-  // IMPORTANT: First sync with copus.network tabs to get current login state
-  // This ensures we show the correct screen (login vs main app)
-  // Website is the source of truth for auth state
-  const tabSyncResult = await tryReadTokenFromCopusTabs();
-
-  // If sync found that user logged out on main site, clear storage
-  if (tabSyncResult && tabSyncResult.loggedOut) {
-    showLoginScreen();
-    state.isLoggedIn = false;
-    state.userInfo = null;
-  } else {
-    // Now check token after sync
-    const hasToken = await quickTokenCheck();
-
-    if (hasToken) {
-      // Start with main app if token exists
-      elements.loginScreen.style.display = 'none';
-      elements.mainContainer.style.display = 'flex';
-
-      // Load user data from storage and display immediately
-      try {
-        let result = { copus_user: null };
-        if (chrome?.storage?.local) {
-          result = await chrome.storage.local.get(['copus_user']);
-        } else {
-          const userStr = localStorage.getItem('copus_user');
-          if (userStr) result.copus_user = JSON.parse(userStr);
-        }
-
-        if (result.copus_user) {
-          state.userInfo = result.copus_user;
-          state.isLoggedIn = true;
-          updateUserAvatar(result.copus_user);
-
-          // Prefetch treasuries in background for faster modal opening
-          prefetchTreasuries();
-        }
-      } catch (error) {
-      }
-    } else {
-      // No token in storage, show login screen
-      elements.loginScreen.style.display = 'flex';
-      elements.mainContainer.style.display = 'none';
+  try {
+    if (chrome?.storage?.local) {
+      const result = await chrome.storage.local.get(['copus_token', 'copus_user']);
+      hasStoredToken = !!(result.copus_token && result.copus_token.split('.').length === 3);
+      storedUser = result.copus_user;
     }
+  } catch (e) {
+    // Ignore errors, show login screen
+  }
+
+  // Show UI immediately based on stored token (optimistic)
+  if (hasStoredToken) {
+    elements.loginScreen.style.display = 'none';
+    elements.mainContainer.style.display = 'flex';
+
+    if (storedUser) {
+      state.userInfo = storedUser;
+      state.isLoggedIn = true;
+      updateUserAvatar(storedUser);
+    }
+  } else {
+    elements.loginScreen.style.display = 'flex';
+    elements.mainContainer.style.display = 'none';
+  }
+
+  // Sync with copus tabs in background (non-blocking)
+  tryReadTokenFromCopusTabs().then(tabSyncResult => {
+    if (tabSyncResult && tabSyncResult.loggedOut) {
+      showLoginScreen();
+      state.isLoggedIn = false;
+      state.userInfo = null;
+    } else if (tabSyncResult && tabSyncResult.token && !hasStoredToken) {
+      // Found token from tab but didn't have one stored - show main app
+      showMainApp(tabSyncResult.user);
+    }
+  }).catch(() => {});
+
+  // Prefetch treasuries in background if logged in
+  if (hasStoredToken) {
+    prefetchTreasuries();
   }
 
 
@@ -2843,42 +2840,41 @@ async function initialize() {
   // Initialize character count
   updateCharacterCount();
 
-  // Get tab info quickly (this is usually fast)
-  const tab = await queryActiveTab();
+  // Load tab info and page data in background (non-blocking)
+  loadTabAndPageData();
 
-  if (!tab) {
-    setStatus('Unable to determine the active tab.', 'error');
-    return;
-  }
-
-  state.activeTabId = tab.id;
-  state.activeWindowId = tab.windowId;
-  state.pageTitle = tab.title || 'Untitled page';
-  state.pageUrl = tab.url || 'Unknown URL';
-
-  // Populate the UI elements immediately
-  elements.pageUrlDisplay.textContent = state.pageUrl;
-  elements.pageTitleInput.value = state.pageTitle.length > 75 ? state.pageTitle.substring(0, 75) : state.pageTitle;
-  updateTitleCharCounter();
-
-  // Set up ready state immediately - NO network operations for instant loading
-  // Run authentication validation in background (non-blocking)
+  // Validate user in background
   validateUserInBackground();
+}
 
-  // Extension is ready - no status message needed
+// Separate async function to load tab and page data without blocking UI
+async function loadTabAndPageData() {
+  try {
+    const tab = await queryActiveTab();
 
+    if (!tab) return;
 
-  // Load page data immediately - loadPageData will inject content script if needed
-  // Only load if URL supports content scripts
-  if (isValidContentScriptUrl(state.pageUrl)) {
-    loadPageData(state.activeTabId).catch(error => {
-    });
-  } else {
+    state.activeTabId = tab.id;
+    state.activeWindowId = tab.windowId;
+    state.pageTitle = tab.title || 'Untitled page';
+    state.pageUrl = tab.url || 'Unknown URL';
+
+    // Update UI with tab info
+    if (elements.pageUrlDisplay) {
+      elements.pageUrlDisplay.textContent = state.pageUrl;
+    }
+    if (elements.pageTitleInput) {
+      elements.pageTitleInput.value = state.pageTitle.length > 75 ? state.pageTitle.substring(0, 75) : state.pageTitle;
+      updateTitleCharCounter();
+    }
+
+    // Load page images
+    if (isValidContentScriptUrl(state.pageUrl)) {
+      loadPageData(state.activeTabId).catch(() => {});
+    }
+  } catch (e) {
+    // Ignore errors
   }
-
-  // Note: userInfo and notification count are fetched once on popup open
-  // via validateUserInBackground() which calls checkAuthentication() and fetchUnreadNotificationCount()
-  // No periodic polling - data is fresh on each popup open
 }
 
 // Listen for storage changes to detect logout from website
