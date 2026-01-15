@@ -2945,20 +2945,20 @@ if (chrome?.tabs?.onUpdated) {
     // Only react to URL changes in the active tab
     if (tabId !== state.activeTabId) return;
 
-    // Only react when the page has finished loading with a new URL
-    if (changeInfo.status === 'complete' && tab.url) {
-      // Check if URL actually changed
-      if (tab.url !== state.pageUrl) {
-        // Reset form for the new page
-        resetFormForNewTab(tab);
+    // React to URL changes (for SPAs) OR page complete (for full page loads)
+    const urlChanged = changeInfo.url && changeInfo.url !== state.pageUrl;
+    const pageComplete = changeInfo.status === 'complete' && tab.url && tab.url !== state.pageUrl;
 
-        // Load page data for the new URL
-        if (isValidContentScriptUrl(tab.url)) {
-          loadPageData(tabId).catch(() => {});
-        } else {
-          state.images = [];
-          updateDetectedImagesButton([]);
-        }
+    if (urlChanged || pageComplete) {
+      // Reset form for the new page
+      resetFormForNewTab(tab);
+
+      // Load page data for the new URL
+      if (isValidContentScriptUrl(tab.url)) {
+        loadPageData(tabId).catch(() => {});
+      } else {
+        state.images = [];
+        updateDetectedImagesButton([]);
       }
     }
   });
