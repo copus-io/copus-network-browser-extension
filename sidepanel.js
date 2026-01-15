@@ -3020,19 +3020,39 @@ async function loadPageData(tabId) {
       }
     }
 
-    if (pageData && Array.isArray(pageData.images)) {
-      state.images = pageData.images;
-      updateDetectedImagesButton(pageData.images);
-      const mainImage = determineMainImage(pageData.images);
-      if (mainImage && mainImage.src) {
-        setCoverImage({ src: mainImage.src }, 'page');
-      } else {
-        setCoverImage(null, null);
+    if (pageData) {
+      // Update title from <title> tag (read by content script)
+      if (pageData.title) {
+        state.pageTitle = pageData.title;
+        if (elements.pageTitleInput) {
+          elements.pageTitleInput.value = pageData.title.length > 75 ? pageData.title.substring(0, 75) : pageData.title;
+          updateTitleCharCounter();
+        }
       }
-    } else {
-      state.images = [];
-      setCoverImage(null, null);
-      updateDetectedImagesButton([]);
+
+      // Update URL
+      if (pageData.url) {
+        state.pageUrl = pageData.url;
+        if (elements.pageUrlDisplay) {
+          elements.pageUrlDisplay.textContent = pageData.url;
+        }
+      }
+
+      // Update cover image from og:image
+      if (Array.isArray(pageData.images)) {
+        state.images = pageData.images;
+        updateDetectedImagesButton(pageData.images);
+        const mainImage = determineMainImage(pageData.images);
+        if (mainImage && mainImage.src) {
+          setCoverImage({ src: mainImage.src }, 'page');
+        } else {
+          setCoverImage(null, null);
+        }
+      } else {
+        state.images = [];
+        setCoverImage(null, null);
+        updateDetectedImagesButton([]);
+      }
     }
   } catch (error) {
     state.images = [];
