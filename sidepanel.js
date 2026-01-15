@@ -653,6 +653,25 @@ async function fetchPageData(tabId) {
   });
 }
 
+// Fetch page data with retry - waits for React Helmet to potentially update og:image
+// Used for SPA navigation where meta tags might update after initial render
+async function fetchPageDataWithRetry(tabId) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Page data fetch timeout'));
+    }, 3000); // Longer timeout since we're waiting for og:image to update
+
+    chrome.tabs.sendMessage(tabId, { type: 'collectPageDataWithRetry' }, (response) => {
+      clearTimeout(timeoutId);
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
 function initializeTestToken() {
   // For testing purposes, save the test token if no token exists
   const testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImxhc3RQYXNzd29yZFJlc2V0VGltZSI6MTc1ODc4MzgzNiwibGFzdExvZ2luVGltZSI6MTc1ODc4NDAyMywiZXhwIjoxNzkwMzIwMDIzLCJpYXQiOjE3NTg3ODQwMjN9.Nr51Ydw68FhTZEELyQeNeKAZXDLzZsFhJXGtqCasSRw';
@@ -2958,7 +2977,10 @@ if (chrome?.tabs?.onUpdated) {
 
       // Load page data for the new URL
       if (isValidContentScriptUrl(tab.url)) {
-        loadPageData(tabId).catch(() => {});
+        // For SPA navigation (urlChanged), use retry to wait for React Helmet to update og:image
+        // For full page loads (pageComplete), page is ready - no retry needed
+        const useRetry = urlChanged && !pageComplete;
+        loadPageData(tabId, useRetry).catch(() => {});
       } else {
         state.images = [];
         updateDetectedImagesButton([]);
@@ -3014,12 +3036,14 @@ function resetFormForNewTab(tab) {
 }
 
 // Separate function for page data loading (non-blocking)
-async function loadPageData(tabId) {
+// useRetry: if true, wait for React Helmet to update og:image (for SPA navigation)
+async function loadPageData(tabId, useRetry = false) {
   try {
     let pageData;
+    const fetchFn = useRetry ? fetchPageDataWithRetry : fetchPageData;
 
     try {
-      pageData = await fetchPageData(tabId);
+      pageData = await fetchFn(tabId);
     } catch (firstError) {
       // Content script not ready, inject and retry
       try {
@@ -3028,7 +3052,7 @@ async function loadPageData(tabId) {
           files: ['contentScript.js']
         });
         await new Promise(resolve => setTimeout(resolve, 150));
-        pageData = await fetchPageData(tabId);
+        pageData = await fetchFn(tabId);
       } catch (e) {
         throw firstError;
       }

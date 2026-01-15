@@ -10,12 +10,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // collectPageData is SYNCHRONOUS - do NOT return true
   if (message.type === 'collectPageData') {
     const images = collectPageImages();
+    const ogImage = document.querySelector("meta[property='og:image']");
     sendResponse({
       title: document.title,
       url: window.location.href,
-      images
+      images,
+      ogImageContent: ogImage ? ogImage.content : null
     });
     return; // Synchronous - no return true needed
+  }
+
+  // collectPageDataWithRetry - waits for React Helmet to potentially update og:image
+  if (message.type === 'collectPageDataWithRetry') {
+    const collectWithRetry = async () => {
+      const initialOgImage = document.querySelector("meta[property='og:image']");
+      const initialContent = initialOgImage ? initialOgImage.content : null;
+
+      // If og:image is the default Copus image, wait for React Helmet to update
+      const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
+
+      if (isDefaultOgImage) {
+        // Wait up to 1.5 seconds for og:image to change (React Helmet needs time)
+        for (let i = 0; i < 3; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const newOgImage = document.querySelector("meta[property='og:image']");
+          const newContent = newOgImage ? newOgImage.content : null;
+          if (newContent && !newContent.includes('og-image.jpg')) {
+            // og:image updated, collect fresh data
+            const images = collectPageImages();
+            return {
+              title: document.title,
+              url: window.location.href,
+              images,
+              ogImageContent: newContent
+            };
+          }
+        }
+      }
+
+      // Either not default or still default after waiting
+      const images = collectPageImages();
+      const finalOgImage = document.querySelector("meta[property='og:image']");
+      return {
+        title: document.title,
+        url: window.location.href,
+        images,
+        ogImageContent: finalOgImage ? finalOgImage.content : null
+      };
+    };
+
+    collectWithRetry().then(data => sendResponse(data));
+    return true; // Async response
   }
 
   // recheckAuth calls async function but we don't wait for it
