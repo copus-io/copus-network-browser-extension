@@ -711,15 +711,19 @@ async function fetchUnreadNotificationCount() {
     if (response.ok) {
       const responseData = await response.json();
 
-      // Handle different API response formats (same logic as main site)
+      // Handle API response format: { status: 1, data: { commentCount, earningCount, totalCount, treasureCount } }
       let unreadCount = 0;
-      if (typeof responseData === 'number') {
+      if (responseData.status === 1 && responseData.data) {
+        // New detailed format with totalCount
+        if (typeof responseData.data === 'object' && responseData.data.totalCount !== undefined) {
+          unreadCount = responseData.data.totalCount;
+        } else if (typeof responseData.data === 'number') {
+          // Legacy format where data is just a number
+          unreadCount = responseData.data;
+        }
+      } else if (typeof responseData === 'number') {
         unreadCount = responseData;
-      } else if (responseData.data !== undefined && typeof responseData.data === 'number') {
-        unreadCount = responseData.data;
-      } else if (responseData.status === 1 && responseData.data !== undefined) {
-        unreadCount = typeof responseData.data === 'number' ? responseData.data : 0;
-      } else if (responseData.count !== undefined && typeof responseData.count === 'number') {
+      } else if (responseData.count !== undefined) {
         unreadCount = responseData.count;
       }
 
