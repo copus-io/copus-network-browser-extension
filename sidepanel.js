@@ -197,7 +197,13 @@ function determineMainImage(images) {
     return null;
   }
 
-  // First, check for og:image (added first with width/height = 0 by content script)
+  // First, check for explicitly marked cover images (from Copus work pages)
+  const coverImage = images.find(img => img.isCover === true);
+  if (coverImage) {
+    return coverImage;
+  }
+
+  // Then, check for og:image (added first with width/height = 0 by content script)
   const ogImage = images.find(img => img.width === 0 && img.height === 0);
   if (ogImage) {
     return ogImage;
