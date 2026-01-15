@@ -197,13 +197,55 @@ function determineMainImage(images) {
     return null;
   }
 
-  const sorted = [...images].sort((a, b) => {
-    const areaA = (a.width || 0) * (a.height || 0);
-    const areaB = (b.width || 0) * (b.height || 0);
-    return areaB - areaA;
-  });
+  // First, check for og:image (added first with width/height = 0 by content script)
+  const ogImage = images.find(img => img.width === 0 && img.height === 0);
+  if (ogImage) {
+    return ogImage;
+  }
 
-  return sorted[0] || null;
+  // Filter and score images
+  const scoredImages = images
+    .filter(img => {
+      // Filter out tiny images (likely icons)
+      const width = img.width || 0;
+      const height = img.height || 0;
+      if (width < 100 || height < 100) return false;
+
+      // Filter out small square images (likely profile pics/avatars)
+      const aspectRatio = width / height;
+      const isSquare = aspectRatio >= 0.9 && aspectRatio <= 1.1;
+      const isSmall = width < 200 && height < 200;
+      if (isSquare && isSmall) return false;
+
+      return true;
+    })
+    .map(img => {
+      const width = img.width || 0;
+      const height = img.height || 0;
+      const area = width * height;
+      const aspectRatio = width / height;
+
+      // Score calculation:
+      // - Prefer larger images (area)
+      // - Prefer landscape/wide images (typical cover images)
+      // - Penalize very square small images
+      let score = area;
+
+      // Bonus for landscape images (typical cover ratio)
+      if (aspectRatio >= 1.3 && aspectRatio <= 2.5) {
+        score *= 1.5;
+      }
+
+      // Bonus for large images
+      if (width >= 600 || height >= 400) {
+        score *= 1.3;
+      }
+
+      return { ...img, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scoredImages[0] || images[0] || null;
 }
 
 function updateDetectedImagesButton(images) {
@@ -2925,6 +2967,36 @@ if (chrome?.tabs?.onActivated) {
       }
     } catch (error) {
       console.error('[Copus Extension] Error getting tab info:', error);
+    }
+  });
+}
+
+// Listen for URL changes in the current tab (navigation within the same tab)
+if (chrome?.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    // Only react to URL changes in the active tab
+    if (tabId !== state.activeTabId) return;
+
+    // Only react when the page has finished loading with a new URL
+    if (changeInfo.status === 'complete' && tab.url) {
+      // Check if URL actually changed
+      if (tab.url !== state.pageUrl) {
+        // Reset form for the new page
+        resetFormForNewTab(tab);
+
+        // Load page data for the new URL
+        if (isValidContentScriptUrl(tab.url)) {
+          // Small delay to let page render
+          setTimeout(() => {
+            loadPageData(tabId).catch(error => {
+              console.error('[Copus Extension] Error loading page data after navigation:', error);
+            });
+          }, 500);
+        } else {
+          state.images = [];
+          updateDetectedImagesButton([]);
+        }
+      }
     }
   });
 }
