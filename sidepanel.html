@@ -216,6 +216,56 @@
       <div id="image-selection-grid" class="image-selection-grid"></div>
     </div>
 
+    <!-- Search View -->
+    <div id="search-view" class="search-view" hidden>
+      <div class="search-header">
+        <button id="search-back-button" class="back-button">←</button>
+        <div class="search-input-wrapper">
+          <svg class="search-input-icon" width="16" height="16" viewBox="0 0 22 22" fill="none">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M9.0872 1.9131C5.12757 1.9131 1.9131 5.12757 1.9131 9.0872C1.9131 13.0468 5.12757 16.2613 9.0872 16.2613C13.0468 16.2613 16.2613 13.0468 16.2613 9.0872C16.2613 5.12757 13.0468 1.9131 9.0872 1.9131Z" fill="#999"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M14.0158 16.7214L18.7349 21.4401C19.4815 22.1866 20.6935 22.1866 21.4401 21.4401C22.1866 20.6935 22.1866 19.4815 21.4401 18.7349L16.7214 14.0158C17.6407 12.5958 18.1744 10.9032 18.1744 9.0872C18.1744 4.07202 14.1024 0 9.0872 0C4.07202 0 0 4.07202 0 9.0872C0 14.1024 4.07202 18.1744 9.0872 18.1744C10.9032 18.1744 12.5958 17.6407 14.0158 16.7214Z" fill="#999"/>
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Search works, treasuries, users..." autocomplete="off">
+          <button id="search-clear-button" class="search-clear-button" type="button" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Tabs -->
+      <div id="search-tabs" class="search-tabs" hidden>
+        <button class="search-tab active" data-tab="all">All</button>
+        <button class="search-tab" data-tab="works">Works</button>
+        <button class="search-tab" data-tab="treasuries">Treasuries</button>
+        <button class="search-tab" data-tab="users">Users</button>
+      </div>
+
+      <!-- Search Results -->
+      <div id="search-results" class="search-results">
+        <!-- Loading State -->
+        <div id="search-loading" class="search-loading" hidden>
+          <div class="search-spinner"></div>
+          <span>Searching...</span>
+        </div>
+
+        <!-- Empty State -->
+        <div id="search-empty" class="search-empty">
+          <p>Search for works, treasuries, and users</p>
+        </div>
+
+        <!-- No Results -->
+        <div id="search-no-results" class="search-no-results" hidden>
+          <p>No results found</p>
+        </div>
+
+        <!-- Results List -->
+        <div id="search-results-list" class="search-results-list" hidden></div>
+      </div>
+    </div>
+
     <!-- Treasury Selection Modal -->
     <div id="treasury-selection-modal" class="treasury-modal" style="display: none;">
       <!-- Backdrop -->

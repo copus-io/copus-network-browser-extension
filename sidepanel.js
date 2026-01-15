@@ -20,7 +20,14 @@ const state = {
   treasuriesFetchPromise: null, // In-flight fetch promise to avoid duplicate requests
   // x402 payment state
   payToVisit: false, // Payment toggle (default off)
-  paymentAmount: '0.01' // Default payment amount in USD
+  paymentAmount: '0.01', // Default payment amount in USD
+  // Search state
+  searchQuery: '',
+  searchActiveTab: 'all',
+  searchResults: { articles: [], spaces: [], users: [] },
+  searchLoading: false,
+  searchPageIndex: { articles: 1, spaces: 1, users: 1 },
+  searchHasMore: { articles: false, spaces: false, users: false }
 };
 
 const elements = {};
@@ -80,8 +87,17 @@ function cacheElements() {
   elements.imageSelectionGrid = document.getElementById('image-selection-grid');
   elements.goBackButton = document.getElementById('go-back-button');
 
-  // Search icon
+  // Search elements
   elements.searchIcon = document.getElementById('search-icon');
+  elements.searchView = document.getElementById('search-view');
+  elements.searchBackButton = document.getElementById('search-back-button');
+  elements.searchInput = document.getElementById('search-input');
+  elements.searchClearButton = document.getElementById('search-clear-button');
+  elements.searchTabs = document.getElementById('search-tabs');
+  elements.searchLoading = document.getElementById('search-loading');
+  elements.searchEmpty = document.getElementById('search-empty');
+  elements.searchNoResults = document.getElementById('search-no-results');
+  elements.searchResultsList = document.getElementById('search-results-list');
 
   // Notification elements
   elements.notificationBell = document.getElementById('notification-bell');
@@ -733,14 +749,373 @@ function updateNotificationBadge(count) {
 }
 
 function handleSearchClick() {
-  // Open the mainsite with search query param to trigger search modal
-  if (chrome?.tabs?.create) {
-    chrome.tabs.create({
-      url: 'https://copus.network/?search=true'
-    });
-  } else {
-    window.open('https://copus.network/?search=true', '_blank');
+  // Open the search view
+  openSearchView();
+}
+
+// ========== Search Functions ==========
+function openSearchView() {
+  if (elements.searchView) {
+    elements.searchView.hidden = false;
+    // Hide main content but keep header visible for back navigation
+    if (elements.compactMain) elements.compactMain.hidden = true;
+    // Hide header
+    const header = document.querySelector('.compact-header');
+    if (header) header.hidden = true;
+    // Hide image selection view if open
+    if (elements.imageSelectionView) elements.imageSelectionView.hidden = true;
+    // Focus the search input
+    setTimeout(() => {
+      elements.searchInput?.focus();
+    }, 100);
   }
+}
+
+function closeSearchView() {
+  if (elements.searchView) {
+    elements.searchView.hidden = true;
+    // Show main content
+    if (elements.compactMain) elements.compactMain.hidden = false;
+    // Show header
+    const header = document.querySelector('.compact-header');
+    if (header) header.hidden = false;
+    // Clear search state
+    state.searchQuery = '';
+    state.searchResults = { articles: [], spaces: [], users: [] };
+    state.searchActiveTab = 'all';
+    if (elements.searchInput) elements.searchInput.value = '';
+    updateSearchUI();
+  }
+}
+
+async function performSearch(query, tab = 'all') {
+  if (!query.trim()) {
+    state.searchResults = { articles: [], spaces: [], users: [] };
+    updateSearchUI();
+    return;
+  }
+
+  state.searchLoading = true;
+  state.searchQuery = query;
+  updateSearchUI();
+
+  const apiBaseUrl = getApiBaseUrl();
+
+  try {
+    if (tab === 'all') {
+      // Fetch all categories in parallel
+      const [articlesRes, spacesRes, usersRes] = await Promise.all([
+        fetchSearchResults(`${apiBaseUrl}/client/home/searchArticle`, query, 1, 6),
+        fetchSearchResults(`${apiBaseUrl}/client/home/searchSpace`, query, 1, 6),
+        fetchSearchResults(`${apiBaseUrl}/client/home/searchUser`, query, 1, 6)
+      ]);
+
+      state.searchResults = {
+        articles: articlesRes.data || [],
+        spaces: spacesRes.data || [],
+        users: usersRes.data || []
+      };
+      state.searchHasMore = {
+        articles: articlesRes.pageIndex < articlesRes.pageCount,
+        spaces: spacesRes.pageIndex < spacesRes.pageCount,
+        users: usersRes.pageIndex < usersRes.pageCount
+      };
+    } else if (tab === 'works') {
+      const res = await fetchSearchResults(`${apiBaseUrl}/client/home/searchArticle`, query, 1, 20);
+      state.searchResults.articles = res.data || [];
+      state.searchHasMore.articles = res.pageIndex < res.pageCount;
+      state.searchPageIndex.articles = 1;
+    } else if (tab === 'treasuries') {
+      const res = await fetchSearchResults(`${apiBaseUrl}/client/home/searchSpace`, query, 1, 20);
+      state.searchResults.spaces = res.data || [];
+      state.searchHasMore.spaces = res.pageIndex < res.pageCount;
+      state.searchPageIndex.spaces = 1;
+    } else if (tab === 'users') {
+      const res = await fetchSearchResults(`${apiBaseUrl}/client/home/searchUser`, query, 1, 20);
+      state.searchResults.users = res.data || [];
+      state.searchHasMore.users = res.pageIndex < res.pageCount;
+      state.searchPageIndex.users = 1;
+    }
+  } catch (error) {
+    console.error('Search failed:', error);
+  }
+
+  state.searchLoading = false;
+  updateSearchUI();
+}
+
+async function fetchSearchResults(url, keyword, pageIndex, pageSize) {
+  const response = await fetch(`${url}?keyword=${encodeURIComponent(keyword)}&pageIndex=${pageIndex}&pageSize=${pageSize}`);
+  const result = await response.json();
+  if (result.status === 1 && result.data) {
+    return result.data;
+  }
+  return { data: [], pageIndex: 1, pageCount: 0, totalCount: 0 };
+}
+
+async function loadMoreResults(type) {
+  const apiBaseUrl = getApiBaseUrl();
+  const pageIndex = state.searchPageIndex[type] + 1;
+
+  let url;
+  if (type === 'articles') url = `${apiBaseUrl}/client/home/searchArticle`;
+  else if (type === 'spaces') url = `${apiBaseUrl}/client/home/searchSpace`;
+  else if (type === 'users') url = `${apiBaseUrl}/client/home/searchUser`;
+
+  const res = await fetchSearchResults(url, state.searchQuery, pageIndex, 20);
+
+  if (type === 'articles') {
+    state.searchResults.articles = [...state.searchResults.articles, ...(res.data || [])];
+    state.searchHasMore.articles = res.pageIndex < res.pageCount;
+    state.searchPageIndex.articles = pageIndex;
+  } else if (type === 'spaces') {
+    state.searchResults.spaces = [...state.searchResults.spaces, ...(res.data || [])];
+    state.searchHasMore.spaces = res.pageIndex < res.pageCount;
+    state.searchPageIndex.spaces = pageIndex;
+  } else if (type === 'users') {
+    state.searchResults.users = [...state.searchResults.users, ...(res.data || [])];
+    state.searchHasMore.users = res.pageIndex < res.pageCount;
+    state.searchPageIndex.users = pageIndex;
+  }
+
+  updateSearchUI();
+}
+
+function updateSearchUI() {
+  // Show/hide loading
+  if (elements.searchLoading) {
+    elements.searchLoading.hidden = !state.searchLoading;
+  }
+
+  // Show/hide empty state
+  if (elements.searchEmpty) {
+    elements.searchEmpty.hidden = state.searchQuery.trim() !== '' || state.searchLoading;
+  }
+
+  // Show/hide tabs
+  if (elements.searchTabs) {
+    elements.searchTabs.hidden = state.searchQuery.trim() === '';
+  }
+
+  // Show/hide clear button
+  if (elements.searchClearButton) {
+    elements.searchClearButton.hidden = state.searchQuery.trim() === '';
+  }
+
+  const hasResults = state.searchResults.articles.length > 0 ||
+                     state.searchResults.spaces.length > 0 ||
+                     state.searchResults.users.length > 0;
+
+  // Show/hide no results
+  if (elements.searchNoResults) {
+    elements.searchNoResults.hidden = state.searchLoading || !state.searchQuery.trim() || hasResults;
+  }
+
+  // Show/hide results list
+  if (elements.searchResultsList) {
+    elements.searchResultsList.hidden = state.searchLoading || !hasResults;
+    if (hasResults) {
+      renderSearchResults();
+    }
+  }
+}
+
+function renderSearchResults() {
+  if (!elements.searchResultsList) return;
+
+  const { articles, spaces, users } = state.searchResults;
+  const tab = state.searchActiveTab;
+
+  let html = '';
+
+  if (tab === 'all') {
+    // Show all sections
+    if (articles.length > 0) {
+      html += renderSearchSection('Works', articles.slice(0, 3), 'article', () => switchSearchTab('works'));
+    }
+    if (spaces.length > 0) {
+      html += renderSearchSection('Treasuries', spaces.slice(0, 3), 'space', () => switchSearchTab('treasuries'));
+    }
+    if (users.length > 0) {
+      html += renderSearchSection('Users', users.slice(0, 6), 'user', () => switchSearchTab('users'));
+    }
+  } else if (tab === 'works') {
+    html += renderResultItems(articles, 'article');
+    if (state.searchHasMore.articles) {
+      html += '<button class="search-load-more" data-type="articles">Load more</button>';
+    }
+  } else if (tab === 'treasuries') {
+    html += renderResultItems(spaces, 'space');
+    if (state.searchHasMore.spaces) {
+      html += '<button class="search-load-more" data-type="spaces">Load more</button>';
+    }
+  } else if (tab === 'users') {
+    html += renderResultItems(users, 'user');
+    if (state.searchHasMore.users) {
+      html += '<button class="search-load-more" data-type="users">Load more</button>';
+    }
+  }
+
+  elements.searchResultsList.innerHTML = html;
+}
+
+function renderSearchSection(title, items, type, onShowAll) {
+  const showMore = (type === 'article' && state.searchResults.articles.length > 3) ||
+                   (type === 'space' && state.searchResults.spaces.length > 3) ||
+                   (type === 'user' && state.searchResults.users.length > 6);
+
+  return `
+    <div class="search-section">
+      <div class="search-section-header">
+        <span class="search-section-title">${title}</span>
+        ${showMore || state.searchHasMore[type === 'article' ? 'articles' : type === 'space' ? 'spaces' : 'users']
+          ? `<button class="search-section-more" data-tab="${type === 'article' ? 'works' : type === 'space' ? 'treasuries' : 'users'}">Show all</button>`
+          : ''}
+      </div>
+      ${renderResultItems(items, type)}
+    </div>
+  `;
+}
+
+function renderResultItems(items, type) {
+  return items.map(item => {
+    let image, title, meta, url;
+
+    if (type === 'article') {
+      image = item.coverImg || item.coverUrl || '';
+      title = item.title || 'Untitled';
+      meta = item.username || item.userName || '';
+      url = `https://copus.network/work/${item.uuid}`;
+    } else if (type === 'space') {
+      image = item.logoUrl || '';
+      title = item.spaceName || item.name || 'Untitled Treasury';
+      meta = `${item.articleCount || 0} works`;
+      url = `https://copus.network/treasury/${item.namespace}`;
+    } else if (type === 'user') {
+      image = item.faceUrl || item.avatar || '';
+      title = item.username || 'Unknown';
+      meta = `@${item.namespace || ''}`;
+      url = `https://copus.network/u/${item.namespace}`;
+    }
+
+    const imageClass = type === 'user' ? 'search-result-image user-avatar' : 'search-result-image';
+    const defaultImage = type === 'user'
+      ? 'https://copus.network/profile-default.svg'
+      : 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23eee" width="100" height="100"/%3E%3C/svg%3E';
+
+    return `
+      <div class="search-result-item" data-url="${url}">
+        <img class="${imageClass}" src="${image || defaultImage}" onerror="this.src='${defaultImage}'" alt="">
+        <div class="search-result-content">
+          <p class="search-result-title">${escapeHtml(title)}</p>
+          <p class="search-result-meta">${escapeHtml(meta)}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function openSearchResult(url) {
+  if (chrome?.tabs?.create) {
+    chrome.tabs.create({ url });
+  } else {
+    window.open(url, '_blank');
+  }
+  closeSearchView();
+}
+
+function switchSearchTab(tab) {
+  state.searchActiveTab = tab;
+
+  // Update tab UI
+  document.querySelectorAll('.search-tab').forEach(tabEl => {
+    tabEl.classList.toggle('active', tabEl.dataset.tab === tab);
+  });
+
+  // Re-fetch if needed for specific tabs
+  if (tab !== 'all' && state.searchQuery) {
+    performSearch(state.searchQuery, tab);
+  } else {
+    updateSearchUI();
+  }
+}
+
+function initSearchEventListeners() {
+  // Back button
+  if (elements.searchBackButton) {
+    elements.searchBackButton.addEventListener('click', closeSearchView);
+  }
+
+  // Search input
+  if (elements.searchInput) {
+    let debounceTimer;
+    elements.searchInput.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      const query = e.target.value;
+      state.searchQuery = query;
+
+      // Update clear button visibility
+      if (elements.searchClearButton) {
+        elements.searchClearButton.hidden = !query.trim();
+      }
+
+      debounceTimer = setTimeout(() => {
+        performSearch(query, state.searchActiveTab);
+      }, 300);
+    });
+
+    elements.searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeSearchView();
+      }
+    });
+  }
+
+  // Clear button
+  if (elements.searchClearButton) {
+    elements.searchClearButton.addEventListener('click', () => {
+      if (elements.searchInput) {
+        elements.searchInput.value = '';
+        elements.searchInput.focus();
+      }
+      state.searchQuery = '';
+      state.searchResults = { articles: [], spaces: [], users: [] };
+      updateSearchUI();
+    });
+  }
+
+  // Tab buttons
+  document.querySelectorAll('.search-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchSearchTab(tab.dataset.tab);
+    });
+  });
+
+  // Event delegation for dynamically created elements
+  document.addEventListener('click', (e) => {
+    // Show all buttons
+    if (e.target.classList.contains('search-section-more')) {
+      const tab = e.target.dataset.tab;
+      if (tab) switchSearchTab(tab);
+    }
+    // Load more buttons
+    if (e.target.classList.contains('search-load-more')) {
+      const type = e.target.dataset.type;
+      if (type) loadMoreResults(type);
+    }
+    // Search result items
+    const resultItem = e.target.closest('.search-result-item');
+    if (resultItem) {
+      const url = resultItem.dataset.url;
+      if (url) openSearchResult(url);
+    }
+  });
 }
 
 function handleNotificationClick() {
@@ -2409,6 +2784,9 @@ async function initialize() {
   if (elements.searchIcon) {
     elements.searchIcon.addEventListener('click', handleSearchClick);
   }
+
+  // Add search view event listeners
+  initSearchEventListeners();
 
   // Add notification bell event listener
   if (elements.notificationBell) {
