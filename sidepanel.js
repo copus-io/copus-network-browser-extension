@@ -2856,8 +2856,11 @@ async function loadTabAndPageData() {
 
     state.activeTabId = tab.id;
     state.activeWindowId = tab.windowId;
-    state.pageTitle = tab.title || 'Untitled page';
-    state.pageUrl = tab.url || 'Unknown URL';
+    state.pageUrl = tab.url || '';
+
+    // Only use title if it's a real title (not a URL)
+    const title = tab.title || '';
+    state.pageTitle = looksLikeUrl(title) ? '' : title;
 
     // Update UI with tab info
     if (elements.pageUrlDisplay) {
@@ -2868,7 +2871,7 @@ async function loadTabAndPageData() {
       updateTitleCharCounter();
     }
 
-    // Load page images
+    // Load page data (will get real title from <title> tag)
     if (isValidContentScriptUrl(state.pageUrl)) {
       loadPageData(state.activeTabId).catch(() => {});
     }
@@ -2964,18 +2967,29 @@ if (chrome?.tabs?.onUpdated) {
   });
 }
 
+// Check if a string looks like a URL (not a real page title)
+function looksLikeUrl(str) {
+  if (!str) return true;
+  return str.startsWith('http://') || str.startsWith('https://') || str.startsWith('file://');
+}
+
 // Reset form fields when switching to a new tab
 function resetFormForNewTab(tab) {
 
-  // Update page URL and title
+  // Update page URL
   state.pageUrl = tab.url || '';
-  state.pageTitle = tab.title || '';
+
+  // Only update title if it's a real title (not a URL)
+  // During page load, tab.title is often the URL before <title> is parsed
+  const title = tab.title || '';
+  state.pageTitle = looksLikeUrl(title) ? '' : title;
 
   // Update UI
   if (elements.pageUrlDisplay) {
     elements.pageUrlDisplay.textContent = state.pageUrl;
   }
   if (elements.pageTitleInput) {
+    // Show empty or actual title, never the URL
     elements.pageTitleInput.value = state.pageTitle.length > 75 ? state.pageTitle.substring(0, 75) : state.pageTitle;
     updateTitleCharCounter();
   }
