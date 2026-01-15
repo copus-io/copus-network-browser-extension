@@ -674,7 +674,7 @@ async function fetchPageData(tabId) {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error('Page data fetch timeout'));
-    }, 800);
+    }, 400);
 
     chrome.tabs.sendMessage(tabId, { type: 'collectPageData' }, (response) => {
       clearTimeout(timeoutId);
@@ -2992,12 +2992,17 @@ if (chrome?.tabs?.onUpdated) {
 
         // Load page data for the new URL
         if (isValidContentScriptUrl(tab.url)) {
-          // Small delay to let page render
-          setTimeout(() => {
-            loadPageData(tabId).catch(error => {
-              console.error('[Copus Extension] Error loading page data after navigation:', error);
-            });
-          }, 500);
+          // For Copus SPA pages, use retry mechanism since React needs time to render
+          const isCopusPage = tab.url.includes('copus.network');
+          if (isCopusPage) {
+            // Retry a few times with short delays for SPA content
+            loadPageDataWithRetry(tabId, 3, 200);
+          } else {
+            // For other pages, single attempt with small delay
+            setTimeout(() => {
+              loadPageData(tabId).catch(() => {});
+            }, 100);
+          }
         } else {
           state.images = [];
           updateDetectedImagesButton([]);
@@ -3005,6 +3010,25 @@ if (chrome?.tabs?.onUpdated) {
       }
     }
   });
+}
+
+// Load page data with retry for SPA pages
+async function loadPageDataWithRetry(tabId, maxRetries, delay) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await loadPageData(tabId);
+      // Check if we got a cover image
+      if (state.coverImage && state.coverImage.src) {
+        return; // Success!
+      }
+    } catch (e) {
+      // Ignore errors, will retry
+    }
+    // Wait before retry
+    if (i < maxRetries - 1) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 }
 
 // Reset form fields when switching to a new tab
