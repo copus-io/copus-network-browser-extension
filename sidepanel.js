@@ -3390,6 +3390,38 @@ if (chrome?.tabs?.onUpdated) {
   });
 }
 
+// Listen for SPA navigation (History API: pushState/replaceState)
+// This is more reliable than tabs.onUpdated for detecting React Router navigation
+if (chrome?.webNavigation?.onHistoryStateUpdated) {
+  chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
+    // Only react to navigation in the active tab's main frame
+    if (details.tabId !== state.activeTabId || details.frameId !== 0) return;
+
+    const newUrl = details.url;
+    if (newUrl && newUrl !== state.lastLoadedUrl) {
+      // Get tab info for resetFormForNewTab
+      try {
+        const tab = await chrome.tabs.get(details.tabId);
+        if (tab) {
+          // Reset form for the new page
+          resetFormForNewTab(tab);
+
+          // Load page data with retry for SPA navigation
+          if (isValidContentScriptUrl(newUrl)) {
+            loadPageData(details.tabId, true).catch(() => {});
+          } else {
+            state.images = [];
+            state.lastLoadedUrl = newUrl;
+            updateDetectedImagesButton([]);
+          }
+        }
+      } catch (error) {
+        // Tab might have been closed
+      }
+    }
+  });
+}
+
 // Check if a string looks like a URL (not a real page title)
 function looksLikeUrl(str) {
   if (!str) return true;
