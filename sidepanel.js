@@ -1409,7 +1409,7 @@ function renderNotificationItem(notification) {
       <img class="notification-avatar" src="${notification.avatar || defaultAvatar}" alt="" onerror="this.src='${defaultAvatar}'">
       <div class="notification-body">
         <p class="notification-message">${escapeHtml(notification.message)}</p>
-        <span class="notification-time">${timeAgo}<span class="notification-type-badge ${notification.type}">${notification.type}</span></span>
+        <span class="notification-time">${timeAgo}</span>
       </div>
     </div>
   `;
