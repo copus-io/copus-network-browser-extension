@@ -178,8 +178,8 @@ html {
 }
 
 .avatar {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
@@ -284,6 +284,11 @@ input, select, textarea {
 
 .field-textarea::placeholder {
   color: var(--text-muted);
+}
+
+.field-textarea-title {
+  min-height: 44px;
+  height: 44px;
 }
 
 .textarea-wrapper {
