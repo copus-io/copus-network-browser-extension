@@ -3544,20 +3544,41 @@ async function loadPageData(tabId, useRetry = false) {
       let finalOgImage = pageData.ogImageContent;
 
       if (isCopusSite && !isWorkPage) {
-        // Use URL-based title for non-work pages
-        if (url.includes('/treasury/')) {
-          finalTitle = 'Treasury | Copus';
+        // Check if title looks stale (still showing previous work page title)
+        const titleLooksStale = finalTitle && finalTitle.includes(' | Copus') &&
+          !finalTitle.startsWith('Copus') && !finalTitle.includes('Treasury') &&
+          !finalTitle.includes('Space') && !finalTitle.includes('Discovery') &&
+          !finalTitle.includes('Profile');
+
+        if (url.includes('/treasury/') || url.includes('/space/')) {
+          // Treasury/Space pages: if title looks stale, retry after delay
+          if (titleLooksStale) {
+            console.log('[Copus] Treasury title looks stale, will retry...');
+            // Schedule a retry to get the correct title
+            setTimeout(() => {
+              if (state.lastLoadedUrl === url) {
+                loadPageData(tabId, false).catch(() => {});
+              }
+            }, 1000);
+          }
         } else if (url.includes('/discovery')) {
           finalTitle = 'Discovery | Copus';
         } else if (url.includes('/profile/') || url.includes('/user/')) {
-          finalTitle = 'Profile | Copus';
+          // Profile pages: if title looks stale, retry
+          if (titleLooksStale) {
+            setTimeout(() => {
+              if (state.lastLoadedUrl === url) {
+                loadPageData(tabId, false).catch(() => {});
+              }
+            }, 1000);
+          }
         } else if (url.endsWith('/') || url.endsWith('.network') || url.endsWith('.io')) {
           finalTitle = 'Copus – Open-Web Curation & Creator Rewards';
         }
         // Use default og:image for non-work Copus pages
         const baseUrl = url.includes('test.copus') ? 'https://test.copus.network' : 'https://copus.network';
         finalOgImage = `${baseUrl}/og-image.jpg`;
-        console.log('[Copus] Using defaults for non-work Copus page:', { finalTitle, finalOgImage });
+        console.log('[Copus] Non-work Copus page:', { finalTitle, finalOgImage, titleLooksStale });
       }
 
       // Update title
