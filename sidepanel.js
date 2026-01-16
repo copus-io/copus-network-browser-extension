@@ -30,7 +30,7 @@ const state = {
   searchHasMore: { articles: false, spaces: false, users: false },
   // Notification state
   notifications: [],
-  notificationActiveTab: 'all', // 'all', 'treasury', 'comment', 'earning'
+  notificationActiveTab: 'treasury', // 'treasury', 'comment', 'earning'
   notificationLoading: false,
   notificationPageIndex: 1,
   notificationHasMore: false
@@ -1205,11 +1205,11 @@ function openNotificationView() {
   state.notifications = [];
   state.notificationPageIndex = 1;
   state.notificationHasMore = false;
-  state.notificationActiveTab = 'all';
+  state.notificationActiveTab = 'treasury';
 
   // Update active tab UI
   document.querySelectorAll('.notification-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.tab === 'all');
+    tab.classList.toggle('active', tab.dataset.tab === 'treasury');
   });
 
   fetchNotifications();

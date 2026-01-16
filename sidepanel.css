@@ -2048,13 +2048,13 @@ input, select, textarea {
 .notification-tabs {
   display: flex;
   gap: 0;
-  padding: 0 16px;
+  padding: 0;
   border-bottom: 1px solid #eee;
   background: white;
-  overflow-x: auto;
 }
 
 .notification-tab {
+  flex: 1;
   padding: 10px 12px;
   background: none;
   border: none;
@@ -2064,6 +2064,7 @@ input, select, textarea {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  text-align: center;
 }
 
 .notification-tab:hover {
