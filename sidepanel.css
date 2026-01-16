@@ -78,8 +78,7 @@ html {
 }
 
 .search-icon:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  transform: scale(1.1);
+  transform: rotate(-12deg) scale(1.05);
 }
 
 .search-icon:hover svg path {
