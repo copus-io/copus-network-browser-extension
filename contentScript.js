@@ -11,9 +11,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'collectPageData') {
     const images = collectPageImages();
     const ogImage = document.querySelector("meta[property='og:image']");
-    const extractedTitle = extractPageTitle();
+    const extracted = extractPageTitle();
     sendResponse({
-      title: extractedTitle || document.title,
+      title: (extracted && extracted.title) || document.title,
       url: window.location.href,
       images,
       ogImageContent: ogImage ? ogImage.content : null
@@ -38,31 +38,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       // Detect page type and current state
       const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
+      const isTreasuryPage = currentUrl.includes('/treasury/') || currentUrl.includes('/space/');
+      const isProfilePage = currentUrl.includes('/profile/') || currentUrl.includes('/user/');
       const isCopusSite = currentUrl.includes('copus.network') || currentUrl.includes('copus.io');
       const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
       const hasWorkTitle = initialTitle && !initialTitle.startsWith('Copus') && initialTitle.includes('–');
 
+      // Check if DOM is stale (URL says treasury but DOM shows work content)
+      const initialExtracted = extractPageTitle();
+      const isDomStale = initialExtracted && initialExtracted.isStale;
+
       // Determine if we need to wait for content to update
       let shouldWait = false;
       let waitingForDefault = false;
+      let waitingForTreasury = false;
 
       if (isCopusSite) {
-        if (isWorkPage && (isDefaultOgImage || !hasWorkTitle)) {
+        if (isTreasuryPage && isDomStale) {
+          // On treasury page but DOM still showing old content - wait for treasury content
+          shouldWait = true;
+          waitingForTreasury = true;
+          console.log('[Copus CS] Treasury page with stale DOM, will wait for treasury content');
+        } else if (isWorkPage && (isDefaultOgImage || !hasWorkTitle)) {
           // On work page but still showing default content - wait for work content
           shouldWait = true;
           waitingForDefault = false;
-        } else if (!isWorkPage && (!isDefaultOgImage || hasWorkTitle)) {
+        } else if (!isWorkPage && !isTreasuryPage && !isProfilePage && (!isDefaultOgImage || hasWorkTitle)) {
           // On homepage but still showing work content - wait for default content
           shouldWait = true;
           waitingForDefault = true;
         }
       }
 
-      console.log('[Copus CS] Wait decision:', { shouldWait, waitingForDefault, isWorkPage, isDefaultOgImage, hasWorkTitle });
+      console.log('[Copus CS] Wait decision:', { shouldWait, waitingForDefault, waitingForTreasury, isWorkPage, isTreasuryPage, isDefaultOgImage, hasWorkTitle, isDomStale });
 
       if (shouldWait) {
-        // Wait up to 1.5 seconds for content to update
-        for (let i = 0; i < 3; i++) {
+        // Wait up to 2 seconds for content to update (longer for treasury pages)
+        const maxRetries = waitingForTreasury ? 4 : 3;
+        for (let i = 0; i < maxRetries; i++) {
           await new Promise(r => setTimeout(r, 500));
           const newTitle = document.title;
           const newOgImage = document.querySelector("meta[property='og:image']");
@@ -70,19 +83,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const newIsDefault = !newContent || newContent.includes('og-image.jpg');
           const newHasWorkTitle = newTitle && !newTitle.startsWith('Copus') && newTitle.includes('–');
 
-          console.log('[Copus CS] Retry', i + 1, ':', { title: newTitle, ogImage: newContent, isDefault: newIsDefault });
+          // Check extracted title for treasury pages
+          const newExtracted = extractPageTitle();
+          const newIsDomStale = newExtracted && newExtracted.isStale;
+
+          console.log('[Copus CS] Retry', i + 1, ':', { title: newTitle, extractedTitle: newExtracted?.title, ogImage: newContent, isDefault: newIsDefault, isDomStale: newIsDomStale });
 
           // Check if content has updated to expected state
-          const contentReady = waitingForDefault
-            ? (newIsDefault || newTitle.startsWith('Copus'))  // Waiting for homepage defaults
-            : (!newIsDefault || newHasWorkTitle);              // Waiting for work-specific content
+          let contentReady = false;
+          if (waitingForTreasury) {
+            // For treasury, we need DOM to have treasury content (not stale)
+            contentReady = !newIsDomStale && newExtracted && newExtracted.title;
+          } else if (waitingForDefault) {
+            contentReady = newIsDefault || newTitle.startsWith('Copus');  // Waiting for homepage defaults
+          } else {
+            contentReady = !newIsDefault || newHasWorkTitle;              // Waiting for work-specific content
+          }
 
           if (contentReady) {
             console.log('[Copus CS] Content ready, returning data');
             const images = collectPageImages();
-            const extractedTitle = extractPageTitle();
             return {
-              title: extractedTitle || document.title,
+              title: (newExtracted && newExtracted.title) || document.title,
               url: window.location.href,
               images,
               ogImageContent: newOgImage ? newOgImage.content : null
@@ -95,10 +117,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Collect current data (either no wait needed or timeout reached)
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
-      const extractedTitle = extractPageTitle();
-      console.log('[Copus CS] Returning final data:', { title: extractedTitle || document.title, ogImage: finalOgImage?.content, imageCount: images.length });
+      const finalExtracted = extractPageTitle();
+      const finalTitle = (finalExtracted && finalExtracted.title) || document.title;
+      console.log('[Copus CS] Returning final data:', { title: finalTitle, ogImage: finalOgImage?.content, imageCount: images.length });
       return {
-        title: extractedTitle || document.title,
+        title: finalTitle,
         url: window.location.href,
         images,
         ogImageContent: finalOgImage ? finalOgImage.content : null
@@ -270,36 +293,35 @@ function getAbsoluteUrl(url) {
 }
 
 // Extract the actual page title from DOM content (for pages where document.title doesn't update)
+// Returns { title: string, isStale: boolean } to indicate if the DOM might still be showing old content
 function extractPageTitle() {
   const url = window.location.href;
 
   // For Copus treasury/space pages, look for the name in the page content
   if (url.includes('/treasury/') || url.includes('/space/')) {
-    // Try to find treasury/space name from common heading elements
-    // Look for h1, h2, or specific class names that might contain the name
-    const selectors = [
-      'h1',
-      'h2',
-      '[class*="treasury-name"]',
-      '[class*="space-name"]',
-      '[class*="title"]',
-      '[class*="header"] h1',
-      '[class*="header"] h2'
-    ];
-
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element && element.textContent) {
-        const text = element.textContent.trim();
-        // Make sure it's not empty and not too long (likely a heading, not body text)
-        if (text && text.length > 0 && text.length < 100) {
-          // Skip if it looks like a work title from previous page
-          if (!text.includes('|') || text.includes('Treasury') || text.includes('Space')) {
-            return text + ' | Copus';
-          }
-        }
+    // Look for treasury/space specific elements first
+    const treasuryNameElement = document.querySelector('[class*="space-name"], [class*="treasury-name"], [class*="SpaceName"]');
+    if (treasuryNameElement && treasuryNameElement.textContent) {
+      const text = treasuryNameElement.textContent.trim();
+      if (text && text.length > 0 && text.length < 100) {
+        return { title: text + ' | Copus', isStale: false };
       }
     }
+
+    // Try h1, but check if it looks like treasury content (short, no article-like patterns)
+    const h1 = document.querySelector('h1');
+    if (h1 && h1.textContent) {
+      const text = h1.textContent.trim();
+      // Treasury names are usually short and simple
+      // Work titles often have punctuation, are longer, or have article-like patterns
+      const looksLikeTreasuryName = text.length < 30 && !text.includes('|') && !text.includes('！') && !text.includes('？');
+      if (looksLikeTreasuryName) {
+        return { title: text + ' | Copus', isStale: false };
+      }
+    }
+
+    // If we're on treasury URL but can't find treasury-specific content, DOM is probably stale
+    return { title: null, isStale: true };
   }
 
   // For profile pages
@@ -308,22 +330,23 @@ function extractPageTitle() {
       '[class*="username"]',
       '[class*="profile-name"]',
       '[class*="user-name"]',
-      'h1',
-      'h2'
+      '[class*="UserName"]'
     ];
 
     for (const selector of selectors) {
       const element = document.querySelector(selector);
       if (element && element.textContent) {
         const text = element.textContent.trim();
-        if (text && text.length > 0 && text.length < 50) {
-          return text + ' | Copus';
+        if (text && text.length > 0 && text.length < 50 && !text.includes('|')) {
+          return { title: text + ' | Copus', isStale: false };
         }
       }
     }
+
+    return { title: null, isStale: true };
   }
 
-  return null; // Use document.title as fallback
+  return { title: null, isStale: false }; // Use document.title as fallback
 }
 
 function collectPageImages() {

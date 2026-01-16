@@ -2065,6 +2065,7 @@ input, select, textarea {
   transition: all 0.2s;
   white-space: nowrap;
   text-align: center;
+  position: relative;
 }
 
 .notification-tab:hover {
@@ -2075,6 +2076,18 @@ input, select, textarea {
   color: #f23a00;
   border-bottom-color: #f23a00;
   font-weight: 600;
+}
+
+/* Red dot for unread notifications on tabs */
+.tab-unread-dot {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background-color: #F23A00;
+  border-radius: 50%;
+  display: none;
 }
 
 /* Notification Content */

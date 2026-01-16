@@ -34,7 +34,14 @@ const state = {
   notificationActiveTab: 'treasury', // 'treasury', 'comment', 'earning'
   notificationLoading: false,
   notificationPageIndex: 1,
-  notificationHasMore: false
+  notificationHasMore: false,
+  // Individual notification counts per category
+  notificationCounts: {
+    treasureCount: 0,
+    commentCount: 0,
+    earningCount: 0,
+    totalCount: 0
+  }
 };
 
 const elements = {};
@@ -733,6 +740,7 @@ async function quickTokenCheck() {
 // Notification functions
 async function fetchUnreadNotificationCount() {
   try {
+    console.log('[Copus Extension] Fetching unread notification count...');
 
     // Check if user is authenticated
     let result = { copus_token: null };
@@ -743,6 +751,7 @@ async function fetchUnreadNotificationCount() {
     }
 
     if (!result.copus_token) {
+      console.log('[Copus Extension] No token found, skipping notification fetch');
       updateNotificationBadge(0);
       return;
     }
@@ -757,28 +766,41 @@ async function fetchUnreadNotificationCount() {
       }
     });
 
+    console.log('[Copus Extension] Notification API response status:', response.status);
 
     if (response.ok) {
       const responseData = await response.json();
+      console.log('[Copus Extension] Notification API response:', responseData);
 
       // Handle API response format: { status: 1, data: { commentCount, earningCount, totalCount, treasureCount } }
-      let unreadCount = 0;
+      let counts = { treasureCount: 0, commentCount: 0, earningCount: 0, totalCount: 0 };
       if (responseData.status === 1 && responseData.data) {
-        // New detailed format with totalCount
+        // New detailed format with individual counts
         if (typeof responseData.data === 'object' && responseData.data.totalCount !== undefined) {
-          unreadCount = responseData.data.totalCount;
+          counts = {
+            treasureCount: responseData.data.treasureCount || 0,
+            commentCount: responseData.data.commentCount || 0,
+            earningCount: responseData.data.earningCount || 0,
+            totalCount: responseData.data.totalCount || 0
+          };
         } else if (typeof responseData.data === 'number') {
           // Legacy format where data is just a number
-          unreadCount = responseData.data;
+          counts.totalCount = responseData.data;
         }
       } else if (typeof responseData === 'number') {
-        unreadCount = responseData;
+        counts.totalCount = responseData;
       } else if (responseData.count !== undefined) {
-        unreadCount = responseData.count;
+        counts.totalCount = responseData.count;
       }
 
-      updateNotificationBadge(unreadCount);
+      // Store counts in state
+      state.notificationCounts = counts;
+      console.log('[Copus Extension] Unread notification counts:', counts);
+
+      updateNotificationBadge(counts.totalCount);
+      updateNotificationTabBadges(counts);
     } else {
+      console.log('[Copus Extension] Notification API failed:', response.status);
       updateNotificationBadge(0);
     }
   } catch (error) {
@@ -799,6 +821,56 @@ function updateNotificationBadge(count) {
     elements.notificationCount.textContent = count > 99 ? '99+' : count.toString();
   } else {
     elements.notificationBadge.style.display = 'none';
+  }
+}
+
+// Update red dots on notification tabs based on individual counts
+function updateNotificationTabBadges(counts) {
+  const tabs = document.querySelectorAll('.notification-tab');
+  tabs.forEach(tab => {
+    const tabType = tab.dataset.tab;
+    let hasUnread = false;
+
+    if (tabType === 'treasury') {
+      hasUnread = counts.treasureCount > 0;
+    } else if (tabType === 'comment') {
+      hasUnread = counts.commentCount > 0;
+    } else if (tabType === 'earning') {
+      hasUnread = counts.earningCount > 0;
+    }
+
+    // Find or create the red dot element
+    let dot = tab.querySelector('.tab-unread-dot');
+    if (hasUnread) {
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'tab-unread-dot';
+        tab.appendChild(dot);
+      }
+      dot.style.display = 'block';
+    } else if (dot) {
+      dot.style.display = 'none';
+    }
+  });
+}
+
+// Start periodic polling for notification count (every 60 seconds, like mainsite)
+let notificationPollInterval = null;
+function startNotificationPolling() {
+  if (notificationPollInterval) return; // Already polling
+
+  notificationPollInterval = setInterval(() => {
+    // Only poll if user is logged in
+    if (state.isLoggedIn) {
+      fetchUnreadNotificationCount();
+    }
+  }, 60000); // 60 seconds
+}
+
+function stopNotificationPolling() {
+  if (notificationPollInterval) {
+    clearInterval(notificationPollInterval);
+    notificationPollInterval = null;
   }
 }
 
@@ -1213,6 +1285,10 @@ function openNotificationView() {
     tab.classList.toggle('active', tab.dataset.tab === 'treasury');
   });
 
+  // Refresh counts and update tab badges
+  fetchUnreadNotificationCount();
+
+  // Fetch notification list
   fetchNotifications();
 }
 
@@ -1222,8 +1298,18 @@ function closeNotificationView() {
   }
 }
 
+// Filter notifications based on active tab
+function filterNotificationsByTab(notifications, tab) {
+  if (tab === 'all') {
+    return notifications;
+  }
+  return notifications.filter(n => n.type === tab);
+}
+
 async function fetchNotifications(append = false) {
   if (state.notificationLoading) return;
+
+  console.log('[Copus Extension] fetchNotifications called, tab:', state.notificationActiveTab, 'page:', state.notificationPageIndex);
 
   state.notificationLoading = true;
   updateNotificationUI();
@@ -1238,20 +1324,16 @@ async function fetchNotifications(append = false) {
     }
 
     if (!result.copus_token) {
+      console.log('[Copus Extension] No token for notifications');
       showToast('Please log in to view notifications', 'error');
       state.notificationLoading = false;
       updateNotificationUI();
       return;
     }
 
-    // Map tab to msgType: 0=all, 1=treasury, 2=comment, 3=earning
-    const msgTypeMap = {
-      'all': 0,
-      'treasury': 1,
-      'comment': 2,
-      'earning': 3
-    };
-    const msgType = msgTypeMap[state.notificationActiveTab] || 0;
+    // Use msgType=0 (all) to fetch all notifications, then filter client-side
+    // This matches mainsite behavior which fetches all and filters by notification type
+    const msgType = 0;
 
     const apiBaseUrl = getApiBaseUrl();
     const params = new URLSearchParams({
@@ -1259,6 +1341,8 @@ async function fetchNotifications(append = false) {
       pageSize: '20',
       msgType: msgType.toString()
     });
+
+    console.log('[Copus Extension] Fetching notifications from:', `${apiBaseUrl}/client/user/msg/pageMsg?${params}`);
 
     const response = await fetch(`${apiBaseUrl}/client/user/msg/pageMsg?${params}`, {
       method: 'GET',
@@ -1268,24 +1352,37 @@ async function fetchNotifications(append = false) {
       }
     });
 
+    console.log('[Copus Extension] Notification list response status:', response.status);
+
     if (!response.ok) {
       throw new Error('Failed to fetch notifications');
     }
 
     const data = await response.json();
+    console.log('[Copus Extension] Notification list API response:', data);
 
     // Parse response - API returns { status: 1, data: [...] } or { status: 1, data: { data: [...] } }
     let notifications = [];
     if (data.data && Array.isArray(data.data)) {
+      console.log('[Copus Extension] Parsing direct array, count:', data.data.length);
       notifications = data.data.map(transformNotification);
     } else if (data.data && data.data.data && Array.isArray(data.data.data)) {
+      console.log('[Copus Extension] Parsing nested array, count:', data.data.data.length);
       notifications = data.data.data.map(transformNotification);
+    } else {
+      console.log('[Copus Extension] Unknown response format:', typeof data.data, data.data);
     }
 
+    console.log('[Copus Extension] Transformed notifications:', notifications);
+
+    // Filter client-side based on active tab
+    const filteredNotifications = filterNotificationsByTab(notifications, state.notificationActiveTab);
+    console.log('[Copus Extension] Filtered notifications for tab', state.notificationActiveTab, ':', filteredNotifications.length);
+
     if (append) {
-      state.notifications = [...state.notifications, ...notifications];
+      state.notifications = [...state.notifications, ...filteredNotifications];
     } else {
-      state.notifications = notifications;
+      state.notifications = filteredNotifications;
     }
 
     // Check if there are more pages
@@ -1305,60 +1402,170 @@ async function fetchNotifications(append = false) {
 function transformNotification(apiNotification) {
   // Transform API notification to our format
   // API: { id, messageType, content, senderInfo, createdAt, isRead }
+  // Message types (same as mainsite):
+  // 2 = FOLLOW (subscribe to treasury)
+  // 3 = FOLLOW_TREASURY (followed space has new work)
+  // 4 = TREASURY (commented on your treasure)
+  // 5 = MENTION
+  // 6 = COMMENT_REPLY
+  // 7 = COMMENT_LIKE
+  // 8 = UNLOCK (paid unlock)
+  // 9 = COLLECT (collected work)
+  // 999 = SYSTEM
 
   let type = 'system';
   let title = 'Notification';
 
   switch (apiNotification.messageType) {
-    case 1:
-      type = 'treasury';
-      title = 'Treasury';
-      break;
     case 2:
-      type = 'comment';
-      title = 'Comment';
+      type = 'treasury'; // Follow/subscribe to treasury
+      title = 'New Subscriber';
       break;
     case 3:
-      type = 'earning';
-      title = 'Earning';
+      type = 'treasury'; // Followed space has new work
+      title = 'New Treasure';
+      break;
+    case 4:
+      type = 'comment'; // Comment on treasure
+      title = 'New Comment';
+      break;
+    case 5:
+      type = 'comment'; // Mention
+      title = 'Mention';
+      break;
+    case 6:
+      type = 'comment'; // Comment reply
+      title = 'Comment Reply';
+      break;
+    case 7:
+      type = 'comment'; // Comment like
+      title = 'Comment Like';
+      break;
+    case 8:
+      type = 'earning'; // Unlock/earning
+      title = 'New Earning';
+      break;
+    case 9:
+      type = 'treasury'; // Collect
+      title = 'New Collect';
       break;
     case 999:
       type = 'system';
       title = 'System';
       break;
+    default:
+      type = 'system';
+      title = 'Notification';
   }
 
-  // Process content
+  // Process content - extract data from JSON
   let message = apiNotification.content || '';
   let workTitle = '';
   let articleUuid = '';
+  let articleId = '';
+  let spaceName = '';
+  let spaceNamespace = '';
+  let commentContent = '';
 
   // Try to parse JSON content
   if (message.startsWith('{') && message.endsWith('}')) {
     try {
       const jsonData = JSON.parse(message);
-      workTitle = jsonData.title || jsonData.content || '';
-      articleUuid = jsonData.uuid || '';
+
+      // Handle different content structures (same as mainsite)
+      // Collect type: { spaces, articleInfo }
+      if (jsonData.spaces && jsonData.articleInfo) {
+        workTitle = jsonData.articleInfo.title || '';
+        articleId = jsonData.articleInfo.id?.toString() || '';
+        articleUuid = jsonData.articleInfo.uuid || '';
+      }
+      // Comment type: { articleInfo, commentInfo }
+      else if (jsonData.articleInfo && jsonData.commentInfo) {
+        workTitle = jsonData.articleInfo.title || '';
+        articleId = jsonData.articleInfo.id?.toString() || '';
+        articleUuid = jsonData.articleInfo.uuid || '';
+        commentContent = jsonData.commentInfo.content || '';
+      }
+      // Follow treasury type: { spaceInfo, articleInfo }
+      else if (jsonData.spaceInfo && jsonData.articleInfo) {
+        spaceName = jsonData.spaceInfo.name || '';
+        spaceNamespace = jsonData.spaceInfo.namespace || '';
+        workTitle = jsonData.articleInfo.title || '';
+        articleId = jsonData.articleInfo.id?.toString() || '';
+        articleUuid = jsonData.articleInfo.uuid || '';
+      }
+      // Follow type: { spaceInfo } only
+      else if (jsonData.spaceInfo && !jsonData.articleInfo) {
+        spaceName = jsonData.spaceInfo.name || '';
+        if (spaceName.endsWith("'s Collections")) {
+          spaceName = spaceName.replace("'s Collections", "'s Treasury");
+        }
+        spaceNamespace = jsonData.spaceInfo.namespace || '';
+      }
+      // Flat space info: { id, name, namespace }
+      else if (jsonData.id && jsonData.name && jsonData.namespace) {
+        spaceName = jsonData.name || '';
+        if (spaceName.endsWith("'s Collections")) {
+          spaceName = spaceName.replace("'s Collections", "'s Treasury");
+        }
+        spaceNamespace = jsonData.namespace || '';
+      }
+      // Comment only: { id, content } without articleInfo
+      else if (jsonData.id && jsonData.content && !jsonData.articleInfo) {
+        commentContent = jsonData.content || '';
+      }
+      // Legacy format
+      else {
+        workTitle = jsonData.title || jsonData.content || jsonData.message || '';
+        articleUuid = jsonData.uuid || '';
+        articleId = jsonData.id?.toString() || '';
+      }
     } catch (e) {
       // Keep original message
+      workTitle = message;
     }
   }
 
-  // Generate friendly message
+  // Generate friendly message based on message type (same as mainsite templates)
   const senderName = apiNotification.senderInfo?.username || 'Someone';
+
   switch (apiNotification.messageType) {
-    case 1:
-      message = `${senderName} treasured your share${workTitle ? ` "${workTitle}"` : ''}`;
+    case 2: // FOLLOW - subscribe to treasury
+      message = `[${senderName}] subscribed to your treasury [${spaceName || 'your treasury'}]`;
       break;
-    case 2:
-      message = `${senderName} commented on your share${workTitle ? ` "${workTitle}"` : ''}`;
+    case 3: // FOLLOW_TREASURY - followed space has new work
+      message = `[${spaceName || 'A treasury'}] you subscribe to has listed a new treasure [${workTitle || 'new work'}]`;
       break;
-    case 3:
-      message = `You earned from${workTitle ? ` "${workTitle}"` : ' a work'}`;
+    case 4: // TREASURY - comment on treasure
+      message = `[${senderName}] commented on your treasure [${workTitle || 'your work'}]${commentContent ? ` [${commentContent}]` : ''}`;
+      break;
+    case 5: // MENTION
+      message = `[${senderName}] mentioned you in a comment`;
+      break;
+    case 6: // COMMENT_REPLY
+      message = commentContent
+        ? `[${senderName}] replied to your comment "${commentContent.substring(0, 50)}${commentContent.length > 50 ? '...' : ''}"`
+        : `[${senderName}] replied to your comment`;
+      break;
+    case 7: // COMMENT_LIKE
+      message = commentContent
+        ? `[${senderName}] liked your comment "${commentContent.substring(0, 50)}${commentContent.length > 50 ? '...' : ''}"`
+        : `[${senderName}] liked your comment`;
+      break;
+    case 8: // UNLOCK - paid unlock
+      message = `[${senderName}] unlocked your treasure [${workTitle || 'your work'}]`;
+      break;
+    case 9: // COLLECT
+      message = `[${senderName}] collected [${workTitle || 'your work'}]`;
+      break;
+    case 999: // SYSTEM
+      message = workTitle || message || 'System notification';
       break;
     default:
       if (workTitle) {
-        message = workTitle;
+        message = `[${senderName}] interacted with [${workTitle}]`;
+      } else {
+        message = `[${senderName}] interacted with you`;
       }
   }
 
@@ -1370,7 +1577,9 @@ function transformNotification(apiNotification) {
     avatar: apiNotification.senderInfo?.faceUrl || '',
     timestamp: apiNotification.createdAt * 1000,
     isRead: apiNotification.isRead,
-    articleUuid
+    articleUuid,
+    articleId,
+    spaceNamespace
   };
 }
 
@@ -1395,6 +1604,15 @@ function updateNotificationUI() {
   // Render notifications
   if (state.notifications.length > 0) {
     elements.notificationList.innerHTML = state.notifications.map(renderNotificationItem).join('');
+    // Add error handlers to avatar images (without inline handlers to avoid CSP issues)
+    elements.notificationList.querySelectorAll('.notification-avatar').forEach(img => {
+      img.addEventListener('error', function() {
+        const defaultAvatar = this.dataset.defaultAvatar;
+        if (defaultAvatar && this.src !== defaultAvatar) {
+          this.src = defaultAvatar;
+        }
+      });
+    });
   } else if (!state.notificationLoading) {
     elements.notificationList.innerHTML = '';
   }
@@ -1403,11 +1621,13 @@ function updateNotificationUI() {
 function renderNotificationItem(notification) {
   const timeAgo = formatTimeAgo(notification.timestamp);
   const unreadClass = notification.isRead ? '' : 'unread';
-  const defaultAvatar = 'https://c.animaapp.com/mg0kz9olCQ44yb/img/profile-default.svg';
+  // Use a data URI for default avatar to avoid 403 errors
+  const defaultAvatar = "data:image/svg+xml,%3csvg width='40' height='40' viewBox='0 0 40 40' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='20' cy='20' r='20' fill='%23E0E0E0'/%3e%3ccircle cx='20' cy='16' r='8' fill='%23999'/%3e%3cpath d='M6 36c0-7.732 6.268-14 14-14s14 6.268 14 14' fill='%23999'/%3e%3c/svg%3e";
+  const avatarSrc = notification.avatar || defaultAvatar;
 
   return `
     <div class="notification-item ${unreadClass}" data-id="${notification.id}" data-uuid="${notification.articleUuid || ''}">
-      <img class="notification-avatar" src="${notification.avatar || defaultAvatar}" alt="" onerror="this.src='${defaultAvatar}'">
+      <img class="notification-avatar" src="${avatarSrc}" alt="" data-default-avatar="${defaultAvatar}">
       <div class="notification-body">
         <p class="notification-message">${escapeHtml(notification.message)}</p>
         <span class="notification-time">${timeAgo}</span>
@@ -3187,6 +3407,11 @@ async function initialize() {
       state.isLoggedIn = true;
       updateUserAvatar(storedUser);
     }
+
+    // Fetch notification count immediately (optimistic, don't wait for auth validation)
+    fetchUnreadNotificationCount();
+    // Start polling for notification updates
+    startNotificationPolling();
   } else {
     elements.loginScreen.style.display = 'flex';
     elements.mainContainer.style.display = 'none';
@@ -3537,6 +3762,28 @@ async function loadPageData(tabId, useRetry = false) {
       const url = pageData.url || '';
       const isCopusSite = url.includes('copus.network') || url.includes('copus.io');
       const isWorkPage = url.includes('/work/') || url.includes('/article/');
+      const isTreasuryPage = url.includes('/treasury/') || url.includes('/space/');
+      const isProfilePage = url.includes('/profile/') || url.includes('/user/');
+      const title = pageData.title || '';
+
+      // Check if title looks stale (doesn't match URL's page type)
+      // Treasury/space titles contain "'s Treasury", "'s Curations", or are short usernames
+      // Work titles are article titles that don't have these patterns
+      const looksLikeTreasuryTitle = title.includes("'s Treasury") || title.includes("'s Curations") || title.includes("'s Space");
+      const looksLikeWorkTitle = title.includes(' | Copus') && !looksLikeTreasuryTitle && !title.includes('Discovery') && !title.startsWith('Copus');
+
+      // Skip update if title doesn't match URL type (stale data)
+      if (isCopusSite && isTreasuryPage && looksLikeWorkTitle && !looksLikeTreasuryTitle) {
+        console.log('[Copus] Skipping stale data - treasury URL but work title:', { url, title });
+        return; // Don't update UI with stale data, wait for correct data
+      }
+
+      // For work pages, skip if data looks incomplete (no og:image and no images = page not loaded yet)
+      // This prevents showing stale title from previous work page
+      if (isCopusSite && isWorkPage && !pageData.ogImageContent && (!pageData.images || pageData.images.length === 0)) {
+        console.log('[Copus] Skipping incomplete work page data - waiting for full load:', { url, title, ogImage: pageData.ogImageContent, imageCount: pageData.images?.length });
+        return; // Don't update UI with incomplete data, wait for page to fully load
+      }
 
       // For Copus non-work pages (homepage, discovery, treasury, etc.), use defaults
       // because React Helmet doesn't restore meta tags when navigating away from work pages
