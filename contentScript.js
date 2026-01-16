@@ -23,32 +23,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // collectPageDataWithRetry - waits for React Helmet to potentially update og:image
   if (message.type === 'collectPageDataWithRetry') {
     const collectWithRetry = async () => {
+      const currentUrl = window.location.href;
+
+      // Initial delay to give React time to render (title and meta tags)
+      await new Promise(r => setTimeout(r, 150));
+
+      const initialTitle = document.title;
       const initialOgImage = document.querySelector("meta[property='og:image']");
       const initialContent = initialOgImage ? initialOgImage.content : null;
 
-      // If og:image is the default Copus image, wait for React Helmet to update
+      // Only wait for og:image update on Copus work/article pages
+      // Homepage and discovery pages use the default og:image intentionally
+      const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
       const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
+      const titleLooksLikeDefault = !initialTitle || initialTitle.includes('Copus') && !initialTitle.includes('–');
 
-      if (isDefaultOgImage) {
-        // Wait up to 1.5 seconds for og:image to change (React Helmet needs time)
+      if (isWorkPage && (isDefaultOgImage || titleLooksLikeDefault)) {
+        // Wait up to 1.5 seconds for og:image or title to change (React Helmet needs time)
         for (let i = 0; i < 3; i++) {
           await new Promise(r => setTimeout(r, 500));
+          const newTitle = document.title;
           const newOgImage = document.querySelector("meta[property='og:image']");
           const newContent = newOgImage ? newOgImage.content : null;
-          if (newContent && !newContent.includes('og-image.jpg')) {
-            // og:image updated, collect fresh data
+
+          // Check if either title or og:image has updated
+          const titleUpdated = newTitle !== initialTitle && newTitle && !newTitle.includes('Copus –');
+          const ogImageUpdated = newContent && !newContent.includes('og-image.jpg');
+
+          if (titleUpdated || ogImageUpdated) {
+            // Content updated, collect fresh data
             const images = collectPageImages();
             return {
               title: document.title,
               url: window.location.href,
               images,
-              ogImageContent: newContent
+              ogImageContent: newOgImage ? newOgImage.content : null
             };
           }
         }
       }
 
-      // Either not default or still default after waiting
+      // Either not a work page, not default, or still default after waiting
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
       return {

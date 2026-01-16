@@ -9,6 +9,7 @@ const state = {
   imageSelectionVisible: false,
   pageTitle: '',
   pageUrl: '',
+  lastLoadedUrl: '', // Track URL that was successfully loaded (for change detection)
   authToken: null,
   userInfo: null,
   isLoggedIn: false,
@@ -3349,6 +3350,7 @@ if (chrome?.tabs?.onActivated) {
           });
         } else {
           state.images = [];
+          state.lastLoadedUrl = tab.url || '';
           updateDetectedImagesButton([]);
         }
       }
@@ -3364,9 +3366,10 @@ if (chrome?.tabs?.onUpdated) {
     // Only react to URL changes in the active tab
     if (tabId !== state.activeTabId) return;
 
-    // React to URL changes (for SPAs) OR page complete (for full page loads)
-    const urlChanged = changeInfo.url && changeInfo.url !== state.pageUrl;
-    const pageComplete = changeInfo.status === 'complete' && tab.url && tab.url !== state.pageUrl;
+    // Use lastLoadedUrl for comparison (not pageUrl which updates immediately)
+    // This ensures we reload when status=complete even if URL was detected earlier
+    const urlChanged = changeInfo.url && changeInfo.url !== state.lastLoadedUrl;
+    const pageComplete = changeInfo.status === 'complete' && tab.url && tab.url !== state.lastLoadedUrl;
 
     if (urlChanged || pageComplete) {
       // Reset form for the new page
@@ -3380,6 +3383,7 @@ if (chrome?.tabs?.onUpdated) {
         loadPageData(tabId, useRetry).catch(() => {});
       } else {
         state.images = [];
+        state.lastLoadedUrl = tab.url || '';
         updateDetectedImagesButton([]);
       }
     }
@@ -3465,9 +3469,10 @@ async function loadPageData(tabId, useRetry = false) {
         }
       }
 
-      // Update URL
+      // Update URL and mark as successfully loaded
       if (pageData.url) {
         state.pageUrl = pageData.url;
+        state.lastLoadedUrl = pageData.url; // Mark this URL as fully loaded
         if (elements.pageUrlDisplay) {
           elements.pageUrlDisplay.textContent = pageData.url;
         }
