@@ -3551,26 +3551,16 @@ async function loadPageData(tabId, useRetry = false) {
           !finalTitle.includes('Profile');
 
         if (url.includes('/treasury/') || url.includes('/space/')) {
-          // Treasury/Space pages: if title looks stale, retry after delay
-          if (titleLooksStale) {
-            console.log('[Copus] Treasury title looks stale, will retry...');
-            // Schedule a retry to get the correct title
-            setTimeout(() => {
-              if (state.lastLoadedUrl === url) {
-                loadPageData(tabId, false).catch(() => {});
-              }
-            }, 1000);
+          // Treasury/Space pages don't update document.title, so use fallback
+          if (titleLooksStale || !finalTitle) {
+            finalTitle = 'Treasury | Copus';
           }
         } else if (url.includes('/discovery')) {
           finalTitle = 'Discovery | Copus';
         } else if (url.includes('/profile/') || url.includes('/user/')) {
-          // Profile pages: if title looks stale, retry
-          if (titleLooksStale) {
-            setTimeout(() => {
-              if (state.lastLoadedUrl === url) {
-                loadPageData(tabId, false).catch(() => {});
-              }
-            }, 1000);
+          // Profile pages: use fallback if title looks stale
+          if (titleLooksStale || !finalTitle) {
+            finalTitle = 'Profile | Copus';
           }
         } else if (url.endsWith('/') || url.endsWith('.network') || url.endsWith('.io')) {
           finalTitle = 'Copus – Open-Web Curation & Creator Rewards';
