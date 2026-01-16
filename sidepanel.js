@@ -3534,11 +3534,37 @@ async function loadPageData(tabId, useRetry = false) {
     });
 
     if (pageData) {
-      // Update title from <title> tag (read by content script)
-      if (pageData.title) {
-        state.pageTitle = pageData.title;
+      const url = pageData.url || '';
+      const isCopusSite = url.includes('copus.network') || url.includes('copus.io');
+      const isWorkPage = url.includes('/work/') || url.includes('/article/');
+
+      // For Copus non-work pages (homepage, discovery, treasury, etc.), use defaults
+      // because React Helmet doesn't restore meta tags when navigating away from work pages
+      let finalTitle = pageData.title;
+      let finalOgImage = pageData.ogImageContent;
+
+      if (isCopusSite && !isWorkPage) {
+        // Use URL-based title for non-work pages
+        if (url.includes('/treasury/')) {
+          finalTitle = 'Treasury | Copus';
+        } else if (url.includes('/discovery')) {
+          finalTitle = 'Discovery | Copus';
+        } else if (url.includes('/profile/') || url.includes('/user/')) {
+          finalTitle = 'Profile | Copus';
+        } else if (url.endsWith('/') || url.endsWith('.network') || url.endsWith('.io')) {
+          finalTitle = 'Copus – Open-Web Curation & Creator Rewards';
+        }
+        // Use default og:image for non-work Copus pages
+        const baseUrl = url.includes('test.copus') ? 'https://test.copus.network' : 'https://copus.network';
+        finalOgImage = `${baseUrl}/og-image.jpg`;
+        console.log('[Copus] Using defaults for non-work Copus page:', { finalTitle, finalOgImage });
+      }
+
+      // Update title
+      if (finalTitle) {
+        state.pageTitle = finalTitle;
         if (elements.pageTitleInput) {
-          elements.pageTitleInput.value = pageData.title.length > 75 ? pageData.title.substring(0, 75) : pageData.title;
+          elements.pageTitleInput.value = finalTitle.length > 75 ? finalTitle.substring(0, 75) : finalTitle;
           updateTitleCharCounter();
         }
       }
@@ -3552,8 +3578,14 @@ async function loadPageData(tabId, useRetry = false) {
         }
       }
 
-      // Update cover image from og:image
-      if (Array.isArray(pageData.images)) {
+      // Update cover image - use og:image for work pages, default for non-work Copus pages
+      if (isCopusSite && !isWorkPage && finalOgImage) {
+        // For non-work Copus pages, use the default og:image directly
+        console.log('[Copus] Setting default cover for non-work page:', finalOgImage);
+        setCoverImage({ src: finalOgImage }, 'page');
+        state.images = pageData.images || [];
+        updateDetectedImagesButton(state.images);
+      } else if (Array.isArray(pageData.images)) {
         state.images = pageData.images;
         updateDetectedImagesButton(pageData.images);
         const mainImage = determineMainImage(pageData.images);
