@@ -3544,31 +3544,17 @@ async function loadPageData(tabId, useRetry = false) {
       let finalOgImage = pageData.ogImageContent;
 
       if (isCopusSite && !isWorkPage) {
-        // Check if title looks stale (still showing previous work page title)
-        const titleLooksStale = finalTitle && finalTitle.includes(' | Copus') &&
-          !finalTitle.startsWith('Copus') && !finalTitle.includes('Treasury') &&
-          !finalTitle.includes('Space') && !finalTitle.includes('Discovery') &&
-          !finalTitle.includes('Profile');
-
-        if (url.includes('/treasury/') || url.includes('/space/')) {
-          // Treasury/Space pages don't update document.title, so use fallback
-          if (titleLooksStale || !finalTitle) {
-            finalTitle = 'Treasury | Copus';
-          }
-        } else if (url.includes('/discovery')) {
+        // For treasury/space/profile pages, trust the extracted title from content script
+        // Only set fallback for discovery and homepage
+        if (url.includes('/discovery')) {
           finalTitle = 'Discovery | Copus';
-        } else if (url.includes('/profile/') || url.includes('/user/')) {
-          // Profile pages: use fallback if title looks stale
-          if (titleLooksStale || !finalTitle) {
-            finalTitle = 'Profile | Copus';
-          }
         } else if (url.endsWith('/') || url.endsWith('.network') || url.endsWith('.io')) {
           finalTitle = 'Copus – Open-Web Curation & Creator Rewards';
         }
         // Use default og:image for non-work Copus pages
         const baseUrl = url.includes('test.copus') ? 'https://test.copus.network' : 'https://copus.network';
         finalOgImage = `${baseUrl}/og-image.jpg`;
-        console.log('[Copus] Non-work Copus page:', { finalTitle, finalOgImage, titleLooksStale });
+        console.log('[Copus] Non-work Copus page:', { finalTitle, finalOgImage });
       }
 
       // Update title

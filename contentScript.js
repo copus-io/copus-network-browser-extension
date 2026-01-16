@@ -11,8 +11,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'collectPageData') {
     const images = collectPageImages();
     const ogImage = document.querySelector("meta[property='og:image']");
+    const extractedTitle = extractPageTitle();
     sendResponse({
-      title: document.title,
+      title: extractedTitle || document.title,
       url: window.location.href,
       images,
       ogImageContent: ogImage ? ogImage.content : null
@@ -79,8 +80,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (contentReady) {
             console.log('[Copus CS] Content ready, returning data');
             const images = collectPageImages();
+            const extractedTitle = extractPageTitle();
             return {
-              title: document.title,
+              title: extractedTitle || document.title,
               url: window.location.href,
               images,
               ogImageContent: newOgImage ? newOgImage.content : null
@@ -93,9 +95,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Collect current data (either no wait needed or timeout reached)
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
-      console.log('[Copus CS] Returning final data:', { title: document.title, ogImage: finalOgImage?.content, imageCount: images.length });
+      const extractedTitle = extractPageTitle();
+      console.log('[Copus CS] Returning final data:', { title: extractedTitle || document.title, ogImage: finalOgImage?.content, imageCount: images.length });
       return {
-        title: document.title,
+        title: extractedTitle || document.title,
         url: window.location.href,
         images,
         ogImageContent: finalOgImage ? finalOgImage.content : null
@@ -264,6 +267,63 @@ function getAbsoluteUrl(url) {
   } catch (error) {
     return url;
   }
+}
+
+// Extract the actual page title from DOM content (for pages where document.title doesn't update)
+function extractPageTitle() {
+  const url = window.location.href;
+
+  // For Copus treasury/space pages, look for the name in the page content
+  if (url.includes('/treasury/') || url.includes('/space/')) {
+    // Try to find treasury/space name from common heading elements
+    // Look for h1, h2, or specific class names that might contain the name
+    const selectors = [
+      'h1',
+      'h2',
+      '[class*="treasury-name"]',
+      '[class*="space-name"]',
+      '[class*="title"]',
+      '[class*="header"] h1',
+      '[class*="header"] h2'
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (element && element.textContent) {
+        const text = element.textContent.trim();
+        // Make sure it's not empty and not too long (likely a heading, not body text)
+        if (text && text.length > 0 && text.length < 100) {
+          // Skip if it looks like a work title from previous page
+          if (!text.includes('|') || text.includes('Treasury') || text.includes('Space')) {
+            return text + ' | Copus';
+          }
+        }
+      }
+    }
+  }
+
+  // For profile pages
+  if (url.includes('/profile/') || url.includes('/user/')) {
+    const selectors = [
+      '[class*="username"]',
+      '[class*="profile-name"]',
+      '[class*="user-name"]',
+      'h1',
+      'h2'
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (element && element.textContent) {
+        const text = element.textContent.trim();
+        if (text && text.length > 0 && text.length < 50) {
+          return text + ' | Copus';
+        }
+      }
+    }
+  }
+
+  return null; // Use document.title as fallback
 }
 
 function collectPageImages() {
