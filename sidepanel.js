@@ -3422,6 +3422,37 @@ if (chrome?.webNavigation?.onHistoryStateUpdated) {
   });
 }
 
+// Fallback: Poll active tab URL to detect SPA navigation that other listeners miss
+// This runs every 500ms and checks if the URL has changed
+let urlPollInterval = null;
+function startUrlPolling() {
+  if (urlPollInterval) return; // Already running
+
+  urlPollInterval = setInterval(async () => {
+    if (!state.activeTabId) return;
+
+    try {
+      const tab = await chrome.tabs.get(state.activeTabId);
+      if (tab && tab.url && tab.url !== state.lastLoadedUrl) {
+        // URL changed, refresh data
+        resetFormForNewTab(tab);
+        if (isValidContentScriptUrl(tab.url)) {
+          loadPageData(state.activeTabId, true).catch(() => {});
+        } else {
+          state.images = [];
+          state.lastLoadedUrl = tab.url;
+          updateDetectedImagesButton([]);
+        }
+      }
+    } catch (e) {
+      // Tab might have been closed
+    }
+  }, 500);
+}
+
+// Start polling when sidepanel loads
+startUrlPolling();
+
 // Check if a string looks like a URL (not a real page title)
 function looksLikeUrl(str) {
   if (!str) return true;
