@@ -1710,7 +1710,6 @@ input, select, textarea {
 .search-input-wrapper {
   flex: 1;
   min-width: 0;
-  max-width: calc(100% - 50px);
   position: relative;
   display: flex;
   align-items: center;
