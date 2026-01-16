@@ -32,26 +32,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const initialOgImage = document.querySelector("meta[property='og:image']");
       const initialContent = initialOgImage ? initialOgImage.content : null;
 
-      // Only wait for og:image update on Copus work/article pages
-      // Homepage and discovery pages use the default og:image intentionally
+      // Detect page type and current state
       const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
+      const isCopusSite = currentUrl.includes('copus.network') || currentUrl.includes('copus.io');
       const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
-      const titleLooksLikeDefault = !initialTitle || initialTitle.includes('Copus') && !initialTitle.includes('–');
+      const hasWorkTitle = initialTitle && !initialTitle.startsWith('Copus') && initialTitle.includes('–');
 
-      if (isWorkPage && (isDefaultOgImage || titleLooksLikeDefault)) {
-        // Wait up to 1.5 seconds for og:image or title to change (React Helmet needs time)
+      // Determine if we need to wait for content to update
+      let shouldWait = false;
+      let waitingForDefault = false;
+
+      if (isCopusSite) {
+        if (isWorkPage && (isDefaultOgImage || !hasWorkTitle)) {
+          // On work page but still showing default content - wait for work content
+          shouldWait = true;
+          waitingForDefault = false;
+        } else if (!isWorkPage && (!isDefaultOgImage || hasWorkTitle)) {
+          // On homepage but still showing work content - wait for default content
+          shouldWait = true;
+          waitingForDefault = true;
+        }
+      }
+
+      if (shouldWait) {
+        // Wait up to 1.5 seconds for content to update
         for (let i = 0; i < 3; i++) {
           await new Promise(r => setTimeout(r, 500));
           const newTitle = document.title;
           const newOgImage = document.querySelector("meta[property='og:image']");
           const newContent = newOgImage ? newOgImage.content : null;
+          const newIsDefault = !newContent || newContent.includes('og-image.jpg');
+          const newHasWorkTitle = newTitle && !newTitle.startsWith('Copus') && newTitle.includes('–');
 
-          // Check if either title or og:image has updated
-          const titleUpdated = newTitle !== initialTitle && newTitle && !newTitle.includes('Copus –');
-          const ogImageUpdated = newContent && !newContent.includes('og-image.jpg');
+          // Check if content has updated to expected state
+          const contentReady = waitingForDefault
+            ? (newIsDefault || newTitle.startsWith('Copus'))  // Waiting for homepage defaults
+            : (!newIsDefault || newHasWorkTitle);              // Waiting for work-specific content
 
-          if (titleUpdated || ogImageUpdated) {
-            // Content updated, collect fresh data
+          if (contentReady) {
             const images = collectPageImages();
             return {
               title: document.title,
@@ -63,7 +81,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       }
 
-      // Either not a work page, not default, or still default after waiting
+      // Collect current data (either no wait needed or timeout reached)
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
       return {
