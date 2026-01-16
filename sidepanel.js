@@ -3434,10 +3434,14 @@ function startUrlPolling() {
     try {
       const tab = await chrome.tabs.get(state.activeTabId);
       if (tab && tab.url && tab.url !== state.lastLoadedUrl) {
+        console.log('[Copus] URL changed detected by polling:', { from: state.lastLoadedUrl, to: tab.url });
         // URL changed, refresh data
         resetFormForNewTab(tab);
         if (isValidContentScriptUrl(tab.url)) {
-          loadPageData(state.activeTabId, true).catch(() => {});
+          console.log('[Copus] Loading page data with retry...');
+          loadPageData(state.activeTabId, true).catch((e) => {
+            console.error('[Copus] loadPageData failed:', e);
+          });
         } else {
           state.images = [];
           state.lastLoadedUrl = tab.url;
@@ -3522,6 +3526,13 @@ async function loadPageData(tabId, useRetry = false) {
       }
     }
 
+    console.log('[Copus] Page data received:', {
+      title: pageData?.title,
+      url: pageData?.url,
+      ogImage: pageData?.ogImageContent,
+      imageCount: pageData?.images?.length
+    });
+
     if (pageData) {
       // Update title from <title> tag (read by content script)
       if (pageData.title) {
@@ -3546,6 +3557,7 @@ async function loadPageData(tabId, useRetry = false) {
         state.images = pageData.images;
         updateDetectedImagesButton(pageData.images);
         const mainImage = determineMainImage(pageData.images);
+        console.log('[Copus] Main image determined:', mainImage?.src);
         if (mainImage && mainImage.src) {
           setCoverImage({ src: mainImage.src }, 'page');
         } else {

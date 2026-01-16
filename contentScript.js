@@ -24,6 +24,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'collectPageDataWithRetry') {
     const collectWithRetry = async () => {
       const currentUrl = window.location.href;
+      console.log('[Copus CS] collectPageDataWithRetry called, URL:', currentUrl);
 
       // Initial delay to give React time to render (title and meta tags)
       await new Promise(r => setTimeout(r, 150));
@@ -31,6 +32,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const initialTitle = document.title;
       const initialOgImage = document.querySelector("meta[property='og:image']");
       const initialContent = initialOgImage ? initialOgImage.content : null;
+
+      console.log('[Copus CS] Initial state:', { title: initialTitle, ogImage: initialContent });
 
       // Detect page type and current state
       const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
@@ -54,6 +57,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       }
 
+      console.log('[Copus CS] Wait decision:', { shouldWait, waitingForDefault, isWorkPage, isDefaultOgImage, hasWorkTitle });
+
       if (shouldWait) {
         // Wait up to 1.5 seconds for content to update
         for (let i = 0; i < 3; i++) {
@@ -64,12 +69,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const newIsDefault = !newContent || newContent.includes('og-image.jpg');
           const newHasWorkTitle = newTitle && !newTitle.startsWith('Copus') && newTitle.includes('–');
 
+          console.log('[Copus CS] Retry', i + 1, ':', { title: newTitle, ogImage: newContent, isDefault: newIsDefault });
+
           // Check if content has updated to expected state
           const contentReady = waitingForDefault
             ? (newIsDefault || newTitle.startsWith('Copus'))  // Waiting for homepage defaults
             : (!newIsDefault || newHasWorkTitle);              // Waiting for work-specific content
 
           if (contentReady) {
+            console.log('[Copus CS] Content ready, returning data');
             const images = collectPageImages();
             return {
               title: document.title,
@@ -79,11 +87,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             };
           }
         }
+        console.log('[Copus CS] Timeout waiting for content update');
       }
 
       // Collect current data (either no wait needed or timeout reached)
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
+      console.log('[Copus CS] Returning final data:', { title: document.title, ogImage: finalOgImage?.content, imageCount: images.length });
       return {
         title: document.title,
         url: window.location.href,
