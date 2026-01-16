@@ -1702,10 +1702,12 @@ input, select, textarea {
   cursor: pointer;
   padding: 4px 8px;
   color: #333;
+  flex-shrink: 0;
 }
 
 .search-input-wrapper {
   flex: 1;
+  min-width: 0;
   position: relative;
   display: flex;
   align-items: center;
