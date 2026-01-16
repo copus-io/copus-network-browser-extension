@@ -51,7 +51,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 16px;
   background: var(--bg-primary);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
@@ -191,11 +191,11 @@ body {
 /* Main Content */
 .compact-main {
   flex: 1;
-  padding: 8px 16px 16px 16px;
+  padding: 10px 16px 12px 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* Field Sections */
@@ -266,7 +266,7 @@ input, select, textarea {
 
 .field-textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
@@ -274,8 +274,8 @@ input, select, textarea {
   color: var(--text-primary);
   resize: none;
   outline: none;
-  min-height: 100px;
-  line-height: 1.5;
+  min-height: 80px;
+  line-height: 1.4;
 }
 
 .field-textarea::placeholder {
@@ -490,7 +490,7 @@ input, select, textarea {
   justify-content: flex-end;
   gap: 12px;
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 8px;
   flex-shrink: 0;
 }
 
@@ -1019,8 +1019,8 @@ input, select, textarea {
 
 /* x402 Payment Section Styles */
 .payment-section {
-  padding: 3px 0;
-  min-height: 85px;
+  padding: 0;
+  min-height: auto;
 }
 
 .payment-header {
