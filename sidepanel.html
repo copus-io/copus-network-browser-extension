@@ -257,6 +257,52 @@
       </div>
     </div>
 
+    <!-- Notification View -->
+    <div id="notification-view" class="notification-view" hidden>
+      <div class="notification-header">
+        <button id="notification-back-button" class="back-button">←</button>
+        <h2>Notifications</h2>
+        <button id="mark-all-read-button" class="mark-all-read-btn" title="Mark all as read">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 11 12 14 22 4"></polyline>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Notification Tabs -->
+      <div id="notification-tabs" class="notification-tabs">
+        <button class="notification-tab active" data-tab="all">All</button>
+        <button class="notification-tab" data-tab="treasury">Treasury</button>
+        <button class="notification-tab" data-tab="comment">Comments</button>
+        <button class="notification-tab" data-tab="earning">Earnings</button>
+      </div>
+
+      <!-- Notification Content -->
+      <div id="notification-content" class="notification-content">
+        <!-- Loading State -->
+        <div id="notification-loading" class="notification-loading" hidden>
+          <div class="notification-spinner"></div>
+          <span>Loading...</span>
+        </div>
+
+        <!-- Empty State -->
+        <div id="notification-empty" class="notification-empty" hidden>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <p>No notifications yet</p>
+        </div>
+
+        <!-- Notification List -->
+        <div id="notification-list" class="notification-list"></div>
+
+        <!-- Load More Button -->
+        <button id="notification-load-more" class="notification-load-more" hidden>Load more</button>
+      </div>
+    </div>
+
     <!-- Treasury Selection Modal -->
     <div id="treasury-selection-modal" class="treasury-modal" style="display: none;">
       <!-- Backdrop -->

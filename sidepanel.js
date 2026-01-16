@@ -27,7 +27,13 @@ const state = {
   searchResults: { articles: [], spaces: [], users: [] },
   searchLoading: false,
   searchPageIndex: { articles: 1, spaces: 1, users: 1 },
-  searchHasMore: { articles: false, spaces: false, users: false }
+  searchHasMore: { articles: false, spaces: false, users: false },
+  // Notification state
+  notifications: [],
+  notificationActiveTab: 'all', // 'all', 'treasury', 'comment', 'earning'
+  notificationLoading: false,
+  notificationPageIndex: 1,
+  notificationHasMore: false
 };
 
 const elements = {};
@@ -99,10 +105,20 @@ function cacheElements() {
   elements.searchNoResults = document.getElementById('search-no-results');
   elements.searchResultsList = document.getElementById('search-results-list');
 
-  // Notification elements
+  // Notification elements (header)
   elements.notificationBell = document.getElementById('notification-bell');
   elements.notificationBadge = document.getElementById('notification-badge');
   elements.notificationCount = document.getElementById('notification-count');
+
+  // Notification view elements
+  elements.notificationView = document.getElementById('notification-view');
+  elements.notificationBackButton = document.getElementById('notification-back-button');
+  elements.markAllReadButton = document.getElementById('mark-all-read-button');
+  elements.notificationTabs = document.getElementById('notification-tabs');
+  elements.notificationLoading = document.getElementById('notification-loading');
+  elements.notificationEmpty = document.getElementById('notification-empty');
+  elements.notificationList = document.getElementById('notification-list');
+  elements.notificationLoadMore = document.getElementById('notification-load-more');
 
   // Treasury selection elements
   elements.treasurySelectButton = document.getElementById('treasury-select-button');
@@ -1175,17 +1191,395 @@ function initSearchEventListeners() {
   });
 }
 
+// ========== Notification Functions ==========
+
 function handleNotificationClick() {
-  if (chrome?.tabs?.create) {
-    chrome.tabs.create({
-      url: 'https://copus.network/notification'
+  openNotificationView();
+}
+
+function openNotificationView() {
+  if (elements.notificationView) {
+    elements.notificationView.hidden = false;
+  }
+  // Reset state and fetch fresh notifications
+  state.notifications = [];
+  state.notificationPageIndex = 1;
+  state.notificationHasMore = false;
+  state.notificationActiveTab = 'all';
+
+  // Update active tab UI
+  document.querySelectorAll('.notification-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.tab === 'all');
+  });
+
+  fetchNotifications();
+}
+
+function closeNotificationView() {
+  if (elements.notificationView) {
+    elements.notificationView.hidden = true;
+  }
+}
+
+async function fetchNotifications(append = false) {
+  if (state.notificationLoading) return;
+
+  state.notificationLoading = true;
+  updateNotificationUI();
+
+  try {
+    // Get auth token
+    let result = { copus_token: null };
+    if (chrome?.storage?.local) {
+      result = await chrome.storage.local.get(['copus_token']);
+    } else {
+      result.copus_token = localStorage.getItem('copus_token');
+    }
+
+    if (!result.copus_token) {
+      showToast('Please log in to view notifications', 'error');
+      state.notificationLoading = false;
+      updateNotificationUI();
+      return;
+    }
+
+    // Map tab to msgType: 0=all, 1=treasury, 2=comment, 3=earning
+    const msgTypeMap = {
+      'all': 0,
+      'treasury': 1,
+      'comment': 2,
+      'earning': 3
+    };
+    const msgType = msgTypeMap[state.notificationActiveTab] || 0;
+
+    const apiBaseUrl = getApiBaseUrl();
+    const params = new URLSearchParams({
+      pageIndex: state.notificationPageIndex.toString(),
+      pageSize: '20',
+      msgType: msgType.toString()
     });
-  } else {
-    window.open('https://copus.network/notification', '_blank');
+
+    const response = await fetch(`${apiBaseUrl}/client/user/msg/pageMsg?${params}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${result.copus_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch notifications');
+    }
+
+    const data = await response.json();
+
+    // Parse response - API returns { status: 1, data: [...] } or { status: 1, data: { data: [...] } }
+    let notifications = [];
+    if (data.data && Array.isArray(data.data)) {
+      notifications = data.data.map(transformNotification);
+    } else if (data.data && data.data.data && Array.isArray(data.data.data)) {
+      notifications = data.data.data.map(transformNotification);
+    }
+
+    if (append) {
+      state.notifications = [...state.notifications, ...notifications];
+    } else {
+      state.notifications = notifications;
+    }
+
+    // Check if there are more pages
+    state.notificationHasMore = notifications.length === 20;
+
+  } catch (error) {
+    console.error('[Copus Extension] Failed to fetch notifications:', error);
+    if (!append) {
+      state.notifications = [];
+    }
   }
 
-  // Close the popup after opening notifications page
-  window.close();
+  state.notificationLoading = false;
+  updateNotificationUI();
+}
+
+function transformNotification(apiNotification) {
+  // Transform API notification to our format
+  // API: { id, messageType, content, senderInfo, createdAt, isRead }
+
+  let type = 'system';
+  let title = 'Notification';
+
+  switch (apiNotification.messageType) {
+    case 1:
+      type = 'treasury';
+      title = 'Treasury';
+      break;
+    case 2:
+      type = 'comment';
+      title = 'Comment';
+      break;
+    case 3:
+      type = 'earning';
+      title = 'Earning';
+      break;
+    case 999:
+      type = 'system';
+      title = 'System';
+      break;
+  }
+
+  // Process content
+  let message = apiNotification.content || '';
+  let workTitle = '';
+  let articleUuid = '';
+
+  // Try to parse JSON content
+  if (message.startsWith('{') && message.endsWith('}')) {
+    try {
+      const jsonData = JSON.parse(message);
+      workTitle = jsonData.title || jsonData.content || '';
+      articleUuid = jsonData.uuid || '';
+    } catch (e) {
+      // Keep original message
+    }
+  }
+
+  // Generate friendly message
+  const senderName = apiNotification.senderInfo?.username || 'Someone';
+  switch (apiNotification.messageType) {
+    case 1:
+      message = `${senderName} treasured your share${workTitle ? ` "${workTitle}"` : ''}`;
+      break;
+    case 2:
+      message = `${senderName} commented on your share${workTitle ? ` "${workTitle}"` : ''}`;
+      break;
+    case 3:
+      message = `You earned from${workTitle ? ` "${workTitle}"` : ' a work'}`;
+      break;
+    default:
+      if (workTitle) {
+        message = workTitle;
+      }
+  }
+
+  return {
+    id: apiNotification.id.toString(),
+    type,
+    title,
+    message,
+    avatar: apiNotification.senderInfo?.faceUrl || '',
+    timestamp: apiNotification.createdAt * 1000,
+    isRead: apiNotification.isRead,
+    articleUuid
+  };
+}
+
+function updateNotificationUI() {
+  if (!elements.notificationList) return;
+
+  // Show/hide loading
+  if (elements.notificationLoading) {
+    elements.notificationLoading.hidden = !state.notificationLoading || state.notifications.length > 0;
+  }
+
+  // Show/hide empty state
+  if (elements.notificationEmpty) {
+    elements.notificationEmpty.hidden = state.notificationLoading || state.notifications.length > 0;
+  }
+
+  // Show/hide load more button
+  if (elements.notificationLoadMore) {
+    elements.notificationLoadMore.hidden = !state.notificationHasMore || state.notificationLoading;
+  }
+
+  // Render notifications
+  if (state.notifications.length > 0) {
+    elements.notificationList.innerHTML = state.notifications.map(renderNotificationItem).join('');
+  } else if (!state.notificationLoading) {
+    elements.notificationList.innerHTML = '';
+  }
+}
+
+function renderNotificationItem(notification) {
+  const timeAgo = formatTimeAgo(notification.timestamp);
+  const unreadClass = notification.isRead ? '' : 'unread';
+  const defaultAvatar = 'https://c.animaapp.com/mg0kz9olCQ44yb/img/profile-default.svg';
+
+  return `
+    <div class="notification-item ${unreadClass}" data-id="${notification.id}" data-uuid="${notification.articleUuid || ''}">
+      <img class="notification-avatar" src="${notification.avatar || defaultAvatar}" alt="" onerror="this.src='${defaultAvatar}'">
+      <div class="notification-body">
+        <p class="notification-message">${escapeHtml(notification.message)}</p>
+        <span class="notification-time">${timeAgo}<span class="notification-type-badge ${notification.type}">${notification.type}</span></span>
+      </div>
+    </div>
+  `;
+}
+
+function formatTimeAgo(timestamp) {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 7) {
+    return new Date(timestamp).toLocaleDateString();
+  } else if (days > 0) {
+    return `${days}d ago`;
+  } else if (hours > 0) {
+    return `${hours}h ago`;
+  } else if (minutes > 0) {
+    return `${minutes}m ago`;
+  } else {
+    return 'Just now';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function switchNotificationTab(tab) {
+  state.notificationActiveTab = tab;
+  state.notificationPageIndex = 1;
+  state.notifications = [];
+
+  // Update tab UI
+  document.querySelectorAll('.notification-tab').forEach(tabEl => {
+    tabEl.classList.toggle('active', tabEl.dataset.tab === tab);
+  });
+
+  fetchNotifications();
+}
+
+async function markNotificationAsRead(notificationId) {
+  try {
+    let result = { copus_token: null };
+    if (chrome?.storage?.local) {
+      result = await chrome.storage.local.get(['copus_token']);
+    } else {
+      result.copus_token = localStorage.getItem('copus_token');
+    }
+
+    if (!result.copus_token) return;
+
+    const apiBaseUrl = getApiBaseUrl();
+    await fetch(`${apiBaseUrl}/client/user/msg/markOneRead`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${result.copus_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: parseInt(notificationId) })
+    });
+
+    // Update local state
+    const notification = state.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.isRead = true;
+      updateNotificationUI();
+    }
+
+    // Refresh unread count
+    fetchUnreadNotificationCount();
+
+  } catch (error) {
+    console.error('[Copus Extension] Failed to mark notification as read:', error);
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    let result = { copus_token: null };
+    if (chrome?.storage?.local) {
+      result = await chrome.storage.local.get(['copus_token']);
+    } else {
+      result.copus_token = localStorage.getItem('copus_token');
+    }
+
+    if (!result.copus_token) return;
+
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/client/user/msg/markAllRead`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${result.copus_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      // Update local state
+      state.notifications.forEach(n => n.isRead = true);
+      updateNotificationUI();
+
+      // Refresh unread count
+      fetchUnreadNotificationCount();
+
+      showToast('All notifications marked as read', 'success');
+    }
+
+  } catch (error) {
+    console.error('[Copus Extension] Failed to mark all as read:', error);
+    showToast('Failed to mark all as read', 'error');
+  }
+}
+
+function initNotificationEventListeners() {
+  // Back button
+  if (elements.notificationBackButton) {
+    elements.notificationBackButton.addEventListener('click', closeNotificationView);
+  }
+
+  // Mark all as read button
+  if (elements.markAllReadButton) {
+    elements.markAllReadButton.addEventListener('click', markAllNotificationsAsRead);
+  }
+
+  // Tab buttons
+  document.querySelectorAll('.notification-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchNotificationTab(tab.dataset.tab);
+    });
+  });
+
+  // Load more button
+  if (elements.notificationLoadMore) {
+    elements.notificationLoadMore.addEventListener('click', () => {
+      state.notificationPageIndex++;
+      fetchNotifications(true);
+    });
+  }
+
+  // Notification item clicks (event delegation)
+  if (elements.notificationList) {
+    elements.notificationList.addEventListener('click', (e) => {
+      const item = e.target.closest('.notification-item');
+      if (item) {
+        const notificationId = item.dataset.id;
+        const articleUuid = item.dataset.uuid;
+
+        // Mark as read
+        if (notificationId) {
+          markNotificationAsRead(notificationId);
+        }
+
+        // Open article if available
+        if (articleUuid) {
+          const url = `https://copus.network/work/${articleUuid}`;
+          if (chrome?.tabs?.create) {
+            chrome.tabs.create({ url });
+          } else {
+            window.open(url, '_blank');
+          }
+        }
+      }
+    });
+  }
 }
 
 // Helper function to get the API base URL
@@ -2846,6 +3240,9 @@ async function initialize() {
   if (elements.notificationBell) {
     elements.notificationBell.addEventListener('click', handleNotificationClick);
   }
+
+  // Add notification view event listeners
+  initNotificationEventListeners();
 
   // Add x402 payment event listeners
   if (elements.payToVisitToggle) {
