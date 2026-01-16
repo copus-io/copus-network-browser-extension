@@ -78,7 +78,7 @@ html {
 }
 
 .search-icon:hover {
-  transform: rotate(-12deg) scale(1.05);
+  transform: rotate(12deg);
 }
 
 .search-icon:hover svg path {
