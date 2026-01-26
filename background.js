@@ -54,16 +54,25 @@ async function checkAndShowTraces(tabId, url) {
     }
 
     if (traces.length > 0) {
-      // Send message to content script to show indicator
-      try {
-        await chrome.tabs.sendMessage(tabId, {
-          type: 'showTracesIndicator',
-          count: traces.length,
-          traces: traces
-        });
-      } catch (e) {
-        // Content script might not be ready
-      }
+      // Send message to content script to show indicator with retry
+      const sendWithRetry = async (attempts = 0) => {
+        if (attempts > 5) {
+          console.log('[Copus BG] Max attempts reached for traces indicator');
+          return;
+        }
+        try {
+          await chrome.tabs.sendMessage(tabId, {
+            type: 'showTracesIndicator',
+            count: traces.length,
+            traces: traces
+          });
+          console.log('[Copus BG] Traces indicator message sent successfully');
+        } catch (e) {
+          console.log('[Copus BG] Traces indicator send failed, attempt', attempts + 1, '- retrying...');
+          setTimeout(() => sendWithRetry(attempts + 1), 500);
+        }
+      };
+      sendWithRetry();
     }
   } catch (e) {
     // Error checking traces - silently fail

@@ -563,12 +563,29 @@ window.addEventListener('storage', function(e) {
 const TRACES_INDICATOR_ID = 'copus-traces-indicator';
 
 function showTracesFloatingIndicator(count, traces = []) {
+  console.log('[Copus Traces] showTracesFloatingIndicator called with count:', count);
+
   // Remove existing indicator if any
   hideTracesFloatingIndicator();
 
   // Don't show on Copus pages
   if (window.location.hostname.includes('copus.network') ||
-      window.location.hostname.includes('copus.io')) {
+      window.location.hostname.includes('copus.io') ||
+      window.location.hostname.includes('copus.ai')) {
+    console.log('[Copus Traces] Skipping Copus page');
+    return;
+  }
+
+  // Wait for document.body if not ready
+  if (!document.body) {
+    console.log('[Copus Traces] document.body not ready, waiting...');
+    const observer = new MutationObserver((mutations, obs) => {
+      if (document.body) {
+        obs.disconnect();
+        showTracesFloatingIndicator(count, traces);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true });
     return;
   }
 
@@ -726,8 +743,19 @@ function showTracesFloatingIndicator(count, traces = []) {
     }
   `;
 
-  document.head.appendChild(style);
-  document.body.appendChild(indicator);
+  // Append to DOM with error handling
+  try {
+    if (document.head) {
+      document.head.appendChild(style);
+    } else {
+      document.documentElement.appendChild(style);
+    }
+    document.body.appendChild(indicator);
+    console.log('[Copus Traces] Indicator appended to DOM');
+  } catch (e) {
+    console.error('[Copus Traces] Failed to append indicator:', e);
+    return;
+  }
 
   // Click handler - open extension sidepanel with traces view
   indicator.addEventListener('click', () => {
