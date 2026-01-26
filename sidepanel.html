@@ -61,6 +61,16 @@
               <span id="notification-count">0</span>
             </div>
           </div>
+          <!-- Traces Icon - Others who were here -->
+          <div id="traces-icon" class="traces-icon" title="Others who were here" style="display: none;">
+            <svg class="traces-pen-icon" width="20" height="20" viewBox="0 0 368 368" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M311.219 349.722H168.964C164.056 349.722 160.073 353.704 160.073 358.611C160.073 363.518 164.056 367.5 168.964 367.5H311.219C316.127 367.5 320.11 363.518 320.11 358.611C320.11 353.704 316.127 349.722 311.219 349.722Z" fill="#666666"/>
+              <path d="M367.602 47.5C367.602 35.6296 362.971 24.463 354.581 16.0741L351.524 13.0185C343.134 4.62963 331.964 0 320.091 0C308.218 0 297.049 4.62963 288.658 13.0185L266.394 35.2778C258.818 29.6852 249.668 26.6667 240.073 26.6667C228.2 26.6667 217.031 31.2963 208.64 39.6852L186.728 61.5926L170.02 44.8889C159.629 34.5 142.699 34.5 132.308 44.8889L55.9757 121.204C52.5119 124.667 52.5119 130.296 55.9757 133.778C57.7168 135.519 59.9951 136.389 62.2549 136.389C64.5147 136.389 66.8115 135.519 68.5341 133.778L144.866 57.463C148.33 54 153.979 54 157.443 57.463L174.151 74.1667L2.61171 245.667C0.944666 247.333 0 249.593 0 251.944V358.611C0 363.519 3.98239 367.5 8.89091 367.5H115.582C117.934 367.5 120.194 366.556 121.861 364.889L327.871 158.926C336.262 150.537 340.892 139.37 340.892 127.5C340.892 117.907 337.873 108.778 332.279 101.185L354.544 78.9259C362.99 70.537 367.602 59.3704 367.602 47.5ZM315.349 146.37L111.933 349.722H17.8189V273.407L73.776 329.352C75.5172 331.093 77.7955 331.963 80.0552 331.963C82.315 331.963 84.6118 331.093 86.3344 329.352C89.7982 325.889 89.7982 320.259 86.3344 316.778L21.4864 251.944L221.217 52.2593C231.608 41.8704 248.538 41.8704 258.929 52.2593L315.331 108.648C320.369 113.685 323.147 120.389 323.147 127.5C323.147 134.63 320.388 141.333 315.349 146.37ZM342.022 66.3704L320.11 88.2778L279.341 47.5185L301.254 25.6111C306.292 20.5741 312.997 17.7963 320.11 17.7963C327.223 17.7963 333.928 20.5741 338.966 25.6111L342.022 28.6667C352.413 39.0556 352.413 55.963 342.022 66.3704Z" fill="#666666"/>
+            </svg>
+            <div id="traces-badge" class="traces-badge" style="display: none;">
+              <span id="traces-count">0</span>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -121,7 +131,7 @@
         <section class="field-section">
           <label class="field-label">Recommendation</label>
           <div class="textarea-wrapper">
-            <textarea id="recommendation-input" class="field-textarea" placeholder="What did you find valuable about this link, and who might benefit from it?" maxlength="1000" required></textarea>
+            <textarea id="recommendation-input" class="field-textarea" placeholder="What makes you want to share it and who should see it?&#10;(Good recommendations boost visibility!)" maxlength="1000" required></textarea>
             <div class="char-counter" id="char-counter">0/1000</div>
           </div>
         </section>
@@ -264,7 +274,11 @@
     <!-- Notification View -->
     <div id="notification-view" class="notification-view" hidden>
       <div class="notification-header">
-        <button id="notification-back-button" class="back-button">←</button>
+        <button id="notification-back-button" class="back-button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
         <h2>Notifications</h2>
         <button id="mark-all-read-button" class="mark-all-read-btn" title="Mark all as read">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -306,6 +320,25 @@
       </div>
     </div>
 
+    <!-- Traces View - Others who curated this page -->
+    <div id="traces-view" class="traces-view" hidden>
+      <div class="traces-header">
+        <button id="traces-back-button" class="back-button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <h2>Traces on this page</h2>
+        <div class="header-spacer"></div>
+      </div>
+
+      <!-- Traces Content -->
+      <div id="traces-content" class="traces-content">
+        <!-- Traces List -->
+        <div id="traces-list" class="traces-list"></div>
+      </div>
+    </div>
+
     <!-- Treasury Selection Modal -->
     <div id="treasury-selection-modal" class="treasury-modal" style="display: none;">
       <!-- Backdrop -->
@@ -323,7 +356,7 @@
 
         <!-- Header with Title and New Treasury Button -->
         <div class="treasury-modal-header">
-          <h2 id="choose-dialog-title">Choose treasuries</h2>
+          <h2 id="choose-dialog-title" class="treasury-modal-title">Collect treasures</h2>
           <button id="treasury-create-trigger" class="treasury-new-btn" type="button" aria-label="Create new treasury">
             <img src="https://c.animaapp.com/eANMvAF7/img/plus.svg" alt="Add" width="20" height="20" />
             <span>New treasury</span>

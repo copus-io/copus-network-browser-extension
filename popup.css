@@ -468,7 +468,7 @@ input, select, textarea {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: auto;
+  margin-top: 12px;
   padding-top: 0;
 }
 

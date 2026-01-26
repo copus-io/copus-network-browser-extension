@@ -182,6 +182,13 @@ function determineMainImage(images) {
     return null;
   }
 
+  // First priority: og:image (standard SEO meta tag)
+  const ogImage = images.find(img => img.isOgImage === true);
+  if (ogImage) {
+    return ogImage;
+  }
+
+  // Fallback: find the largest suitable image
   const sorted = [...images].sort((a, b) => {
     const areaA = (a.width || 0) * (a.height || 0);
     const areaB = (b.width || 0) * (b.height || 0);
@@ -2463,7 +2470,7 @@ async function handleScreenshotCapture() {
     });
 
     setCoverImage({ src: screenshot }, 'screenshot');
-    // No status message needed for screenshot success
+    showToast('Avoid personal data in screenshots', 'success');
   } catch (error) {
     setStatus('Unable to capture screenshot: ' + error.message, 'error');
   } finally {

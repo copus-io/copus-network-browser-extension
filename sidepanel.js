@@ -41,7 +41,12 @@ const state = {
     commentCount: 0,
     earningCount: 0,
     totalCount: 0
-  }
+  },
+  // Traces state - others who curated this URL
+  traces: [],
+  tracesLoading: false,
+  tracesCurrentUrl: '',
+  tracesCount: 0
 };
 
 const elements = {};
@@ -127,6 +132,14 @@ function cacheElements() {
   elements.notificationEmpty = document.getElementById('notification-empty');
   elements.notificationList = document.getElementById('notification-list');
   elements.notificationLoadMore = document.getElementById('notification-load-more');
+
+  // Traces elements (others who curated this URL)
+  elements.tracesIcon = document.getElementById('traces-icon');
+  elements.tracesBadge = document.getElementById('traces-badge');
+  elements.tracesCount = document.getElementById('traces-count');
+  elements.tracesView = document.getElementById('traces-view');
+  elements.tracesBackButton = document.getElementById('traces-back-button');
+  elements.tracesList = document.getElementById('traces-list');
 
   // Treasury selection elements
   elements.treasurySelectButton = document.getElementById('treasury-select-button');
@@ -1298,6 +1311,435 @@ function closeNotificationView() {
   }
 }
 
+// ========== TRACES FEATURE - Others who curated this URL ==========
+
+// Mock data for development - will be replaced with real API
+// MOCK_TRACES removed - now using real API
+
+function openTracesView() {
+  if (elements.tracesView) {
+    elements.tracesView.hidden = false;
+  }
+  // Render traces
+  renderTraces();
+}
+
+function closeTracesView() {
+  if (elements.tracesView) {
+    elements.tracesView.hidden = true;
+  }
+}
+
+// Check if current URL has traces (curations from others)
+async function checkTracesForCurrentUrl(url) {
+  if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+    hideTracesIndicator();
+    return;
+  }
+
+  // Skip Copus pages - prevents infinite recursion of curating curation pages
+  if (url.includes('copus.network') || url.includes('copus.io') || url.includes('copus.ai')) {
+    hideTracesIndicator();
+    return;
+  }
+
+  state.tracesCurrentUrl = url;
+  state.tracesLoading = true;
+
+  try {
+    const apiBaseUrl = getApiBaseUrl();
+    const apiUrl = `${apiBaseUrl}/plugin/plugin/author/article/articlesByTargetUrl?pageIndex=0&pageSize=50&targetUrl=${encodeURIComponent(url)}`;
+
+    // Get auth token
+    let token = null;
+    if (chrome?.storage?.local) {
+      const result = await chrome.storage.local.get(['copus_token']);
+      token = result.copus_token;
+    }
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    // API returns { status: 1, data: { data: [...], pageCount, pageIndex, pageSize, totalCount } }
+    let traces = [];
+    if (result.status === 1 && result.data) {
+      traces = Array.isArray(result.data.data) ? result.data.data : [];
+    }
+
+    state.traces = traces;
+    state.tracesCount = traces.length;
+    state.tracesLoading = false;
+
+    if (traces.length > 0) {
+      showTracesIndicator(traces.length);
+    } else {
+      hideTracesIndicator();
+    }
+  } catch (error) {
+    console.error('[Copus Traces] Error:', error.message);
+    state.tracesLoading = false;
+    state.traces = [];
+    state.tracesCount = 0;
+    hideTracesIndicator();
+  }
+}
+
+function showTracesIndicator(count) {
+  if (elements.tracesIcon) {
+    elements.tracesIcon.style.display = 'flex';
+  }
+  if (elements.tracesBadge && count > 0) {
+    elements.tracesBadge.style.display = 'flex';
+    if (elements.tracesCount) {
+      elements.tracesCount.textContent = count > 99 ? '99+' : count.toString();
+    }
+  }
+}
+
+function hideTracesIndicator() {
+  if (elements.tracesIcon) {
+    elements.tracesIcon.style.display = 'none';
+  }
+  if (elements.tracesBadge) {
+    elements.tracesBadge.style.display = 'none';
+  }
+}
+
+function renderTraces() {
+  if (!elements.tracesList) return;
+
+  if (state.traces.length === 0) {
+    elements.tracesList.innerHTML = '';
+    return;
+  }
+
+  // Render trace cards
+  elements.tracesList.innerHTML = state.traces.map(trace => createTraceCard(trace)).join('');
+
+  // Add event listeners for expand and treasure buttons
+  elements.tracesList.querySelectorAll('.trace-expand-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.trace-card');
+      card.classList.toggle('expanded');
+      btn.textContent = card.classList.contains('expanded') ? 'Show less' : 'Read more';
+    });
+  });
+
+  elements.tracesList.querySelectorAll('.trace-treasure-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const treasureBtn = e.target.closest('.trace-treasure-btn');
+      const uuid = treasureBtn.dataset.uuid;
+      const numericId = treasureBtn.dataset.id;
+      handleTraceCollect(uuid, numericId, btn);
+    });
+  });
+}
+
+function createTraceCard(trace) {
+  const author = trace.authorInfo || {};
+  const avatarUrl = author.faceUrl || 'https://c.animaapp.com/mg0kz9olCQ44yb/img/ic-fractopus-open.svg';
+  const username = author.username || 'Anonymous';
+  const namespace = author.namespace || '';
+  const timeAgo = getTimeAgo(trace.createAt);
+  const likeCount = trace.likeCount || 0;
+  const title = trace.title || '';
+
+  // URLs for linking
+  const workUrl = `https://copus.network/work/${trace.uuid}`;
+  const profileUrl = namespace ? `https://copus.network/${namespace}` : '#';
+
+  // Escape HTML and preserve formatting (newlines -> <br>)
+  const escapeHtml = (text) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\n/g, '<br>');
+  };
+
+  const content = trace.content || '';
+  const formattedContent = escapeHtml(content);
+  const truncatedContent = content.length > 150
+    ? escapeHtml(content.substring(0, 150)) + '...'
+    : formattedContent;
+  const needsExpand = content.length > 150;
+
+  return `
+    <div class="trace-card" data-uuid="${trace.uuid}" data-id="${trace.id || ''}">
+      <div class="trace-header">
+        <a href="${profileUrl}" target="_blank" class="trace-avatar-link" title="View ${username}'s profile">
+          <div class="trace-avatar">
+            <img src="${avatarUrl}" alt="${username}" onerror="this.src='https://c.animaapp.com/mg0kz9olCQ44yb/img/ic-fractopus-open.svg'" />
+          </div>
+        </a>
+        <div class="trace-author-info">
+          <a href="${profileUrl}" target="_blank" class="trace-username-link" title="View ${username}'s profile">
+            <span class="trace-username">${username}</span>
+          </a>
+          <span class="trace-time">${timeAgo}</span>
+        </div>
+      </div>
+      ${title ? `<a href="${workUrl}" target="_blank" class="trace-title-link" title="View on Copus"><h3 class="trace-title">${escapeHtml(title)}</h3></a>` : ''}
+      <div class="trace-content">
+        <div class="trace-text">${truncatedContent}</div>
+        <div class="trace-text-full" hidden>${formattedContent}</div>
+        ${needsExpand ? '<button class="trace-expand-btn">Read more</button>' : ''}
+      </div>
+      <div class="trace-footer">
+        <span class="trace-stat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          ${trace.commentCount || 0}
+        </span>
+        <button class="trace-treasure-btn" data-uuid="${trace.uuid}" data-id="${trace.id || ''}" title="Collect to your treasury">
+          <img class="treasure-icon" src="https://c.animaapp.com/mft5gmofxQLTNf/img/treasure-icon.svg" alt="Treasure" />
+          <span class="treasure-count">${likeCount}</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function getTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+  return `${Math.floor(seconds / 2592000)}mo ago`;
+}
+
+// State for trace collect modal
+state.traceCollectArticle = null; // { uuid, numericId }
+
+/**
+ * Handle collect button click on a trace card
+ * Opens the treasury selection modal to collect the article
+ */
+async function handleTraceCollect(uuid, numericId, buttonElement) {
+  // Check if user is logged in
+  if (!state.isLoggedIn) {
+    showToast('Please log in to collect', 'error');
+    return;
+  }
+
+  // Store the article info for when treasury selection is confirmed
+  state.traceCollectArticle = { uuid, numericId: numericId ? parseInt(numericId) : null };
+
+  // If we don't have numeric ID, we need to fetch it
+  if (!state.traceCollectArticle.numericId) {
+    showToast('Fetching article info...', 'info');
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      let result = { copus_token: null };
+      if (chrome?.storage?.local) {
+        result = await chrome.storage.local.get(['copus_token']);
+      }
+
+      const response = await fetch(`${apiBaseUrl}/client/article/detail?uuid=${uuid}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': result.copus_token ? `Bearer ${result.copus_token}` : '',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 1 && data.data?.id) {
+          state.traceCollectArticle.numericId = data.data.id;
+        }
+      }
+    } catch (error) {
+      console.error('[Copus Extension] Error fetching article detail:', error);
+    }
+
+    if (!state.traceCollectArticle.numericId) {
+      showToast('Failed to get article info', 'error');
+      return;
+    }
+  }
+
+  // Open the treasury selection modal
+  openTraceCollectModal();
+}
+
+/**
+ * Open treasury selection modal for collecting a trace article
+ */
+async function openTraceCollectModal() {
+  // Show modal
+  elements.treasuryModal.style.display = 'flex';
+
+  // Reset search
+  elements.treasurySearchInput.value = '';
+  state.treasurySearchQuery = '';
+
+  // Hide create form
+  elements.treasuryCreateForm.style.display = 'none';
+  elements.newTreasuryName.value = '';
+
+  // Update modal title and save button for collect mode
+  const modalTitle = elements.treasuryModal.querySelector('.treasury-modal-title');
+  if (modalTitle) {
+    modalTitle.textContent = 'Collect to Treasury';
+  }
+
+  // Update save button text
+  if (elements.treasuryModalSave) {
+    elements.treasuryModalSave.textContent = 'Collect';
+  }
+
+  // Reset selection
+  state.selectedTreasuries = [];
+
+  // Fetch treasuries with binding status for this article
+  elements.treasuryList.innerHTML = '<div class="treasury-loading">Loading treasuries...</div>';
+
+  try {
+    await fetchBindableSpacesForArticle(state.traceCollectArticle.numericId);
+    renderTreasuryList();
+  } catch (error) {
+    console.error('[Copus Extension] Error loading treasuries:', error);
+    elements.treasuryList.innerHTML = '<div class="treasury-empty">Failed to load treasuries</div>';
+  }
+}
+
+/**
+ * Fetch bindable spaces for a specific article (to show current binding status)
+ */
+async function fetchBindableSpacesForArticle(articleId) {
+  let result = { copus_token: null };
+  if (chrome?.storage?.local) {
+    result = await chrome.storage.local.get(['copus_token']);
+  } else {
+    result.copus_token = localStorage.getItem('copus_token');
+  }
+
+  if (!result.copus_token) {
+    throw new Error('Authentication required');
+  }
+
+  const apiBaseUrl = getApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/client/article/bind/bindableSpaces?id=${articleId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${result.copus_token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch spaces');
+  }
+
+  const data = await response.json();
+  if (data.status === 1 && Array.isArray(data.data)) {
+    state.availableTreasuries = data.data;
+    // Pre-select already bound treasuries
+    state.selectedTreasuries = data.data
+      .filter(space => space.isBind)
+      .map(space => ({ id: space.id, name: space.name }));
+  }
+}
+
+/**
+ * Save collection - bind article to selected treasuries
+ */
+async function saveTraceCollection() {
+  if (!state.traceCollectArticle?.numericId) {
+    showToast('No article selected', 'error');
+    return;
+  }
+
+  if (state.selectedTreasuries.length === 0) {
+    showToast('Please select at least one treasury', 'error');
+    return;
+  }
+
+  try {
+    let result = { copus_token: null };
+    if (chrome?.storage?.local) {
+      result = await chrome.storage.local.get(['copus_token']);
+    }
+
+    if (!result.copus_token) {
+      showToast('Please log in to collect', 'error');
+      return;
+    }
+
+    const apiBaseUrl = getApiBaseUrl();
+    const spaceIds = state.selectedTreasuries.map(t => t.id);
+
+    const response = await fetch(`${apiBaseUrl}/client/article/bind/bindArticles`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${result.copus_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        articleId: state.traceCollectArticle.numericId,
+        spaceIds: spaceIds
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to collect article');
+    }
+
+    const data = await response.json();
+    if (data.status === 1) {
+      showToast('Collected successfully!', 'success');
+
+      // Save uuid before closing modal (which clears state.traceCollectArticle)
+      const articleUuid = state.traceCollectArticle.uuid;
+
+      closeTreasuryModal();
+
+      // Update the treasure button in the trace card
+      const traceCard = document.querySelector(`.trace-card[data-uuid="${articleUuid}"]`);
+      if (traceCard) {
+        const treasureBtn = traceCard.querySelector('.trace-treasure-btn');
+        if (treasureBtn) {
+          // Update count
+          const countEl = treasureBtn.querySelector('.treasure-count');
+          if (countEl) {
+            const currentCount = parseInt(countEl.textContent) || 0;
+            countEl.textContent = currentCount + 1;
+          }
+          // Mark as collected (active state)
+          treasureBtn.classList.add('collected');
+        }
+      }
+    } else {
+      throw new Error(data.message || 'Failed to collect');
+    }
+  } catch (error) {
+    console.error('[Copus Extension] Error collecting article:', error);
+    showToast('Failed to collect article', 'error');
+  }
+}
+
 // Filter notifications based on active tab
 function filterNotificationsByTab(notifications, tab) {
   if (tab === 'all') {
@@ -1807,6 +2249,56 @@ function initNotificationEventListeners() {
 function getApiBaseUrl() {
   // Production API - must match the main site's API
   return 'https://api-prod.copus.network';
+}
+
+// Extract work UUID from Copus work page URL
+// e.g., https://copus.network/work/2e67ae77a2421e7c3e9f03df54ff1aae -> 2e67ae77a2421e7c3e9f03df54ff1aae
+function extractWorkUuidFromUrl(url) {
+  if (!url) return null;
+  const match = url.match(/\/work\/([a-f0-9]+)/i);
+  return match ? match[1] : null;
+}
+
+// Fetch work/article data directly from Copus API
+async function fetchCopusWorkData(uuid) {
+  if (!uuid) return null;
+
+  try {
+    const apiBaseUrl = getApiBaseUrl();
+    const apiUrl = `${apiBaseUrl}/client/article/detail?uuid=${uuid}`;
+
+    // Get auth token
+    let token = null;
+    if (chrome?.storage?.local) {
+      const result = await chrome.storage.local.get(['copus_token']);
+      token = result.copus_token;
+    }
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const result = await response.json();
+    // API returns { status: 1, data: { title, coverUrl, ... } }
+    if (result.status === 1 && result.data) {
+      return result.data;
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
 }
 
 // Authentication functions
@@ -2377,6 +2869,13 @@ async function openTreasuryModal() {
  */
 function closeTreasuryModal() {
   elements.treasuryModal.style.display = 'none';
+  // Clear trace collect state if any
+  state.traceCollectArticle = null;
+  // Reset modal title back to default
+  const modalTitle = elements.treasuryModal.querySelector('.treasury-modal-title');
+  if (modalTitle) {
+    modalTitle.textContent = 'Collect treasures';
+  }
 }
 
 /**
@@ -2491,10 +2990,13 @@ function updateSaveButtonText() {
   if (!elements.treasuryModalSave) return;
 
   const count = state.selectedTreasuries.length;
+  const isCollectMode = !!state.traceCollectArticle;
+  const baseText = isCollectMode ? 'Collect' : 'Save';
+
   if (count > 0) {
-    elements.treasuryModalSave.textContent = `Save (${count})`;
+    elements.treasuryModalSave.textContent = `${baseText} (${count})`;
   } else {
-    elements.treasuryModalSave.textContent = 'Save';
+    elements.treasuryModalSave.textContent = baseText;
   }
 }
 
@@ -2569,8 +3071,13 @@ async function handleCreateTreasury() {
  * Save treasury selection and close modal
  */
 function saveTreasurySelection() {
+  // Check if we're in trace collect mode
+  if (state.traceCollectArticle) {
+    saveTraceCollection();
+    return;
+  }
 
-  // Update the button text
+  // Original curate flow - just update the button text
   updateTreasuryButtonText();
 
   // Close modal
@@ -3367,7 +3874,7 @@ async function handleScreenshotCapture() {
     });
 
     setCoverImage({ src: screenshot }, 'screenshot');
-    // No status message needed for screenshot success
+    showToast('Avoid personal data in screenshots', 'success');
   } catch (error) {
     setStatus('Unable to capture screenshot: ' + error.message, 'error');
   } finally {
@@ -3470,6 +3977,16 @@ async function initialize() {
   // Add notification view event listeners
   initNotificationEventListeners();
 
+  // Add traces icon event listener
+  if (elements.tracesIcon) {
+    elements.tracesIcon.addEventListener('click', openTracesView);
+  }
+
+  // Add traces back button listener
+  if (elements.tracesBackButton) {
+    elements.tracesBackButton.addEventListener('click', closeTracesView);
+  }
+
   // Add x402 payment event listeners
   if (elements.payToVisitToggle) {
     elements.payToVisitToggle.addEventListener('change', handlePaymentToggle);
@@ -3517,8 +4034,46 @@ async function loadTabAndPageData() {
     if (isValidContentScriptUrl(state.pageUrl)) {
       loadPageData(state.activeTabId).catch(() => {});
     }
+
+    // Check for traces (others who curated this URL)
+    checkTracesForCurrentUrl(state.pageUrl);
+
+    // Check if we should show traces view immediately (clicked from floating indicator)
+    checkAndShowTracesView();
   } catch (e) {
     // Ignore errors
+  }
+}
+
+// Check if we should show traces view (user clicked floating indicator)
+async function checkAndShowTracesView() {
+  try {
+    // Check for URL query parameter (popup window mode)
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+
+    // Check for storage flag
+    const result = await chrome.storage.local.get(['copus_show_traces', 'copus_traces_data']);
+
+    if (viewParam === 'traces' || result.copus_show_traces) {
+      // Clear the flag and data
+      await chrome.storage.local.remove(['copus_show_traces', 'copus_traces_data']);
+
+      // If we have traces data from storage, use it
+      if (result.copus_traces_data && result.copus_traces_data.length > 0) {
+        state.traces = result.copus_traces_data;
+        state.tracesCount = result.copus_traces_data.length;
+        // Show the indicator in the header
+        showTracesIndicator(state.tracesCount);
+      }
+
+      // Show traces view
+      setTimeout(() => {
+        openTracesView();
+      }, 300); // Small delay to ensure UI is ready
+    }
+  } catch (e) {
+    console.log('[Copus] Error checking traces flag:', e);
   }
 }
 
@@ -3726,6 +4281,16 @@ function resetFormForNewTab(tab) {
   // Reset treasury selection for new tab
   state.selectedTreasuries = [];
   updateTreasuryButtonText();
+
+  // Close traces view and reset traces state when URL changes
+  closeTracesView();
+  state.traces = [];
+  state.tracesCount = 0;
+  state.tracesCurrentUrl = '';
+  hideTracesIndicator();
+
+  // Check for traces on the new URL
+  checkTracesForCurrentUrl(tab.url || '');
 }
 
 // Separate function for page data loading (non-blocking)
@@ -3766,27 +4331,40 @@ async function loadPageData(tabId, useRetry = false) {
       const isProfilePage = url.includes('/profile/') || url.includes('/user/');
       const title = pageData.title || '';
 
-      // Check if title looks stale (doesn't match URL's page type)
-      // Treasury/space titles contain "'s Treasury", "'s Curations", or are short usernames
-      // Work titles are article titles that don't have these patterns
-      const looksLikeTreasuryTitle = title.includes("'s Treasury") || title.includes("'s Curations") || title.includes("'s Space");
-      const looksLikeWorkTitle = title.includes(' | Copus') && !looksLikeTreasuryTitle && !title.includes('Discovery') && !title.startsWith('Copus');
-
-      // Skip update if title doesn't match URL type (stale data)
-      if (isCopusSite && isTreasuryPage && looksLikeWorkTitle && !looksLikeTreasuryTitle) {
-        console.log('[Copus] Skipping stale data - treasury URL but work title:', { url, title });
-        return; // Don't update UI with stale data, wait for correct data
-      }
-
-      // For work pages, skip if data looks incomplete (no og:image and no images = page not loaded yet)
-      // This prevents showing stale title from previous work page
-      if (isCopusSite && isWorkPage && !pageData.ogImageContent && (!pageData.images || pageData.images.length === 0)) {
-        console.log('[Copus] Skipping incomplete work page data - waiting for full load:', { url, title, ogImage: pageData.ogImageContent, imageCount: pageData.images?.length });
-        return; // Don't update UI with incomplete data, wait for page to fully load
+      // For Copus work pages, fetch data directly from API to avoid stale meta tags
+      if (isCopusSite && isWorkPage) {
+        const workUuid = extractWorkUuidFromUrl(url);
+        if (workUuid) {
+          const workData = await fetchCopusWorkData(workUuid);
+          if (workData) {
+            // Update title from API
+            const workTitle = workData.title || '';
+            state.pageTitle = workTitle;
+            if (elements.pageTitleInput) {
+              elements.pageTitleInput.value = workTitle.length > 75 ? workTitle.substring(0, 75) : workTitle;
+              updateTitleCharCounter();
+            }
+            // Update URL
+            state.pageUrl = url;
+            state.lastLoadedUrl = url;
+            if (elements.pageUrlDisplay) {
+              elements.pageUrlDisplay.textContent = url;
+            }
+            // Update cover image from API
+            const coverUrl = workData.coverUrl || workData.imageUrl || '';
+            if (coverUrl) {
+              setCoverImage({ src: coverUrl }, 'page');
+            } else {
+              setCoverImage(null, null);
+            }
+            state.images = pageData.images || [];
+            updateDetectedImagesButton(state.images);
+            return; // Done handling work page
+          }
+        }
       }
 
       // For Copus non-work pages (homepage, discovery, treasury, etc.), use defaults
-      // because React Helmet doesn't restore meta tags when navigating away from work pages
       let finalTitle = pageData.title;
       let finalOgImage = pageData.ogImageContent;
 
@@ -3801,7 +4379,6 @@ async function loadPageData(tabId, useRetry = false) {
         // Use default og:image for non-work Copus pages
         const baseUrl = url.includes('test.copus') ? 'https://test.copus.network' : 'https://copus.network';
         finalOgImage = `${baseUrl}/og-image.jpg`;
-        console.log('[Copus] Non-work Copus page:', { finalTitle, finalOgImage });
       }
 
       // Update title
@@ -3824,8 +4401,6 @@ async function loadPageData(tabId, useRetry = false) {
 
       // Update cover image - use og:image for work pages, default for non-work Copus pages
       if (isCopusSite && !isWorkPage && finalOgImage) {
-        // For non-work Copus pages, use the default og:image directly
-        console.log('[Copus] Setting default cover for non-work page:', finalOgImage);
         setCoverImage({ src: finalOgImage }, 'page');
         state.images = pageData.images || [];
         updateDetectedImagesButton(state.images);
@@ -3833,7 +4408,6 @@ async function loadPageData(tabId, useRetry = false) {
         state.images = pageData.images;
         updateDetectedImagesButton(pageData.images);
         const mainImage = determineMainImage(pageData.images);
-        console.log('[Copus] Main image determined:', mainImage?.src);
         if (mainImage && mainImage.src) {
           setCoverImage({ src: mainImage.src }, 'page');
         } else {
@@ -3858,3 +4432,13 @@ if (document.readyState === 'loading') {
 } else {
   initialize();
 }
+
+// Listen for messages from background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'showTracesView') {
+    // Open traces view
+    openTracesView();
+    sendResponse({ success: true });
+  }
+  return false;
+});

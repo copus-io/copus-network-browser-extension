@@ -1,3 +1,98 @@
+// ========== TRACES FEATURE - Detect curations on current URL ==========
+
+// API base URL
+function getApiBaseUrl() {
+  return 'https://api-prod.copus.network';
+}
+
+// Check for traces on a URL and notify content script
+async function checkAndShowTraces(tabId, url) {
+  if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+    return;
+  }
+
+  // Skip Copus pages
+  if (url.includes('copus.network') || url.includes('copus.io') || url.includes('copus.ai')) {
+    return;
+  }
+
+  try {
+    const apiBaseUrl = getApiBaseUrl();
+    const apiUrl = `${apiBaseUrl}/plugin/plugin/author/article/articlesByTargetUrl?pageIndex=0&pageSize=50&targetUrl=${encodeURIComponent(url)}`;
+
+    // Get auth token
+    let token = null;
+    try {
+      const result = await chrome.storage.local.get(['copus_token']);
+      token = result.copus_token;
+    } catch (e) {
+      // Storage might not be available
+    }
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const result = await response.json();
+
+    // API returns { status: 1, data: { data: [...], pageCount, pageIndex, pageSize, totalCount } }
+    let traces = [];
+    if (result.status === 1 && result.data) {
+      traces = Array.isArray(result.data.data) ? result.data.data : [];
+    }
+
+    if (traces.length > 0) {
+      // Send message to content script to show indicator
+      try {
+        await chrome.tabs.sendMessage(tabId, {
+          type: 'showTracesIndicator',
+          count: traces.length,
+          traces: traces
+        });
+      } catch (e) {
+        // Content script might not be ready
+      }
+    }
+  } catch (e) {
+    // Error checking traces - silently fail
+  }
+}
+
+// Listen for page navigation completion
+chrome.webNavigation.onCompleted.addListener((details) => {
+  // Only check main frame (not iframes)
+  if (details.frameId === 0) {
+    // Small delay to ensure content script is ready
+    setTimeout(() => {
+      checkAndShowTraces(details.tabId, details.url);
+    }, 1000);
+  }
+});
+
+// Also check when tab becomes active (user switches tabs)
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab.url) {
+      checkAndShowTraces(activeInfo.tabId, tab.url);
+    }
+  } catch (e) {
+    // Tab might not exist
+  }
+});
+
 // Toggle the side panel
 async function toggleSidePanel(tab) {
   if (!tab || !tab.id) {
@@ -162,6 +257,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
     return true; // Keep message channel open for async response
+  }
+
+  // Set flag to show traces view when user opens sidepanel
+  if (message.type === 'setShowTracesFlag') {
+    console.log('[Copus BG] Setting show traces flag');
+    chrome.storage.local.set({ 'copus_show_traces': true }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // Open traces panel directly - creates popup window with sidepanel content
+  if (message.type === 'openTracesPanel') {
+    console.log('[Copus BG] Opening traces panel');
+
+    // Store traces data and flag
+    chrome.storage.local.set({
+      'copus_show_traces': true,
+      'copus_traces_data': message.traces || []
+    }, async () => {
+      try {
+        // Try to open sidepanel first (works if called from valid context)
+        if (sender.tab && sender.tab.id) {
+          try {
+            await chrome.sidePanel.open({ tabId: sender.tab.id });
+            console.log('[Copus BG] Sidepanel opened successfully');
+            sendResponse({ success: true, method: 'sidepanel' });
+            return;
+          } catch (e) {
+            console.log('[Copus BG] Sidepanel failed, falling back to popup window:', e.message);
+          }
+        }
+
+        // Fallback: Open as popup window
+        const popupWidth = 380;
+        const popupHeight = 600;
+
+        // Get current window to position popup
+        const currentWindow = await chrome.windows.getCurrent();
+        const left = currentWindow.left + currentWindow.width - popupWidth - 20;
+        const top = currentWindow.top + 60;
+
+        await chrome.windows.create({
+          url: chrome.runtime.getURL('sidepanel.html?view=traces'),
+          type: 'popup',
+          width: popupWidth,
+          height: popupHeight,
+          left: Math.max(0, left),
+          top: Math.max(0, top)
+        });
+
+        console.log('[Copus BG] Traces popup window opened');
+        sendResponse({ success: true, method: 'popup' });
+      } catch (error) {
+        console.error('[Copus BG] Failed to open traces panel:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    });
+
+    return true;
   }
 
   // Proxy API requests through background script to avoid popup network issues
