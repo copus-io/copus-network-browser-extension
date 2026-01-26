@@ -2293,20 +2293,17 @@ input, select, textarea {
   justify-content: center;
   padding: 4px;
   border-radius: 4px;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
 .traces-icon:hover {
   transform: rotate(12deg);
 }
 
-.traces-icon:hover svg path {
-  fill: #333333;
-}
-
-.traces-pen-icon {
-  width: 20px;
-  height: 20px;
+.traces-octopus {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .traces-badge {
