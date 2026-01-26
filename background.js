@@ -7,12 +7,16 @@ function getApiBaseUrl() {
 
 // Check for traces on a URL and notify content script
 async function checkAndShowTraces(tabId, url) {
+  console.log('[Copus BG] checkAndShowTraces called for tab:', tabId, 'url:', url);
+
   if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+    console.log('[Copus BG] Skipping - invalid URL type');
     return;
   }
 
   // Skip Copus pages
   if (url.includes('copus.network') || url.includes('copus.io') || url.includes('copus.ai')) {
+    console.log('[Copus BG] Skipping - Copus page');
     return;
   }
 
@@ -46,12 +50,15 @@ async function checkAndShowTraces(tabId, url) {
     }
 
     const result = await response.json();
+    console.log('[Copus BG] API response:', JSON.stringify(result).substring(0, 200));
 
     // API returns { status: 1, data: { data: [...], pageCount, pageIndex, pageSize, totalCount } }
     let traces = [];
     if (result.status === 1 && result.data) {
       traces = Array.isArray(result.data.data) ? result.data.data : [];
     }
+
+    console.log('[Copus BG] Found', traces.length, 'traces');
 
     if (traces.length > 0) {
       // Send message to content script to show indicator with retry
@@ -83,10 +90,11 @@ async function checkAndShowTraces(tabId, url) {
 chrome.webNavigation.onCompleted.addListener((details) => {
   // Only check main frame (not iframes)
   if (details.frameId === 0) {
+    console.log('[Copus BG] Page navigation completed:', details.url);
     // Small delay to ensure content script is ready
     setTimeout(() => {
       checkAndShowTraces(details.tabId, details.url);
-    }, 1000);
+    }, 1500);
   }
 });
 

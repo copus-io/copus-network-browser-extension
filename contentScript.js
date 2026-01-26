@@ -6,7 +6,15 @@ if (document.documentElement) {
 
 // Set up message listener IMMEDIATELY so sidepanel can communicate
 // Function declarations below are hoisted, so they'll be available
+console.log('[Copus CS] Content script loaded on:', window.location.href);
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Ping to check if content script is alive
+  if (message.type === 'ping') {
+    sendResponse({ success: true, message: 'Content script is alive' });
+    return;
+  }
+
   // collectPageData is SYNCHRONOUS - do NOT return true
   if (message.type === 'collectPageData') {
     const images = collectPageImages();
@@ -141,8 +149,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Show traces indicator on page
   if (message.type === 'showTracesIndicator') {
-    showTracesFloatingIndicator(message.count, message.traces);
-    sendResponse({ success: true });
+    console.log('[Copus CS] Received showTracesIndicator message, count:', message.count);
+    try {
+      showTracesFloatingIndicator(message.count, message.traces);
+      console.log('[Copus CS] showTracesFloatingIndicator completed');
+      sendResponse({ success: true });
+    } catch (e) {
+      console.error('[Copus CS] Error showing traces indicator:', e);
+      sendResponse({ success: false, error: e.message });
+    }
     return;
   }
 
