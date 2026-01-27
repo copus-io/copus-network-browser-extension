@@ -21,105 +21,119 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return; // Synchronous - no return true needed
   }
 
-  // collectPageDataWithRetry - waits for React Helmet to potentially update og:image
+  // collectPageDataWithRetry - waits for SPA title updates and React Helmet
   if (message.type === 'collectPageDataWithRetry') {
     const collectWithRetry = async () => {
       const currentUrl = window.location.href;
-      console.log('[Copus CS] collectPageDataWithRetry called, URL:', currentUrl);
 
-      // Initial delay to give React time to render (title and meta tags)
-      await new Promise(r => setTimeout(r, 150));
+      // Initial delay to give SPAs time to update title
+      await new Promise(r => setTimeout(r, 300));
 
-      const initialTitle = document.title;
-      const initialOgImage = document.querySelector("meta[property='og:image']");
-      const initialContent = initialOgImage ? initialOgImage.content : null;
-
-      console.log('[Copus CS] Initial state:', { title: initialTitle, ogImage: initialContent });
-
-      // Detect page type and current state
-      const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
-      const isTreasuryPage = currentUrl.includes('/treasury/') || currentUrl.includes('/space/');
-      const isProfilePage = currentUrl.includes('/profile/') || currentUrl.includes('/user/');
+      // Detect SPA sites that need special handling
+      const isYouTube = currentUrl.includes('youtube.com');
+      const isTwitter = currentUrl.includes('twitter.com') || currentUrl.includes('x.com');
       const isCopusSite = currentUrl.includes('copus.network') || currentUrl.includes('copus.io');
-      const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
-      const hasWorkTitle = initialTitle && !initialTitle.startsWith('Copus') && initialTitle.includes('–');
 
-      // Check if DOM is stale (URL says treasury but DOM shows work content)
-      const initialExtracted = extractPageTitle();
-      const isDomStale = initialExtracted && initialExtracted.isStale;
+      // For YouTube video pages, wait for proper title
+      if (isYouTube && currentUrl.includes('/watch')) {
+        const maxRetries = 6;
+        for (let i = 0; i < maxRetries; i++) {
+          const title = document.title;
+          // YouTube video titles end with " - YouTube", generic page is just "YouTube"
+          if (title && title !== 'YouTube' && title.includes(' - YouTube')) {
+            break;
+          }
+          // Also try to extract from page element
+          const videoTitle = document.querySelector('h1.ytd-video-primary-info-renderer, h1.ytd-watch-metadata yt-formatted-string');
+          if (videoTitle && videoTitle.textContent && videoTitle.textContent.trim()) {
+            break;
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
 
-      // Determine if we need to wait for content to update
-      let shouldWait = false;
-      let waitingForDefault = false;
-      let waitingForTreasury = false;
+      // For Twitter/X, wait for title to update
+      if (isTwitter) {
+        const maxRetries = 4;
+        for (let i = 0; i < maxRetries; i++) {
+          const title = document.title;
+          // Twitter titles include the tweet content or user info
+          if (title && title !== 'X' && title !== 'Twitter' && !title.startsWith('(')) {
+            break;
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
 
+      // For Copus site, use existing logic
       if (isCopusSite) {
+        const initialTitle = document.title;
+        const initialOgImage = document.querySelector("meta[property='og:image']");
+        const initialContent = initialOgImage ? initialOgImage.content : null;
+
+        const isWorkPage = currentUrl.includes('/work/') || currentUrl.includes('/article/');
+        const isTreasuryPage = currentUrl.includes('/treasury/') || currentUrl.includes('/space/');
+        const isProfilePage = currentUrl.includes('/profile/') || currentUrl.includes('/user/');
+        const isDefaultOgImage = !initialContent || initialContent.includes('og-image.jpg');
+        const hasWorkTitle = initialTitle && !initialTitle.startsWith('Copus') && initialTitle.includes('–');
+
+        const initialExtracted = extractPageTitle();
+        const isDomStale = initialExtracted && initialExtracted.isStale;
+
+        let shouldWait = false;
+        let waitingForDefault = false;
+        let waitingForTreasury = false;
+
         if (isTreasuryPage && isDomStale) {
-          // On treasury page but DOM still showing old content - wait for treasury content
           shouldWait = true;
           waitingForTreasury = true;
-          console.log('[Copus CS] Treasury page with stale DOM, will wait for treasury content');
         } else if (isWorkPage && (isDefaultOgImage || !hasWorkTitle)) {
-          // On work page but still showing default content - wait for work content
           shouldWait = true;
           waitingForDefault = false;
         } else if (!isWorkPage && !isTreasuryPage && !isProfilePage && (!isDefaultOgImage || hasWorkTitle)) {
-          // On homepage but still showing work content - wait for default content
           shouldWait = true;
           waitingForDefault = true;
         }
-      }
 
-      console.log('[Copus CS] Wait decision:', { shouldWait, waitingForDefault, waitingForTreasury, isWorkPage, isTreasuryPage, isDefaultOgImage, hasWorkTitle, isDomStale });
+        if (shouldWait) {
+          const maxRetries = waitingForTreasury ? 4 : 3;
+          for (let i = 0; i < maxRetries; i++) {
+            await new Promise(r => setTimeout(r, 500));
+            const newTitle = document.title;
+            const newOgImage = document.querySelector("meta[property='og:image']");
+            const newContent = newOgImage ? newOgImage.content : null;
+            const newIsDefault = !newContent || newContent.includes('og-image.jpg');
+            const newHasWorkTitle = newTitle && !newTitle.startsWith('Copus') && newTitle.includes('–');
+            const newExtracted = extractPageTitle();
+            const newIsDomStale = newExtracted && newExtracted.isStale;
 
-      if (shouldWait) {
-        // Wait up to 2 seconds for content to update (longer for treasury pages)
-        const maxRetries = waitingForTreasury ? 4 : 3;
-        for (let i = 0; i < maxRetries; i++) {
-          await new Promise(r => setTimeout(r, 500));
-          const newTitle = document.title;
-          const newOgImage = document.querySelector("meta[property='og:image']");
-          const newContent = newOgImage ? newOgImage.content : null;
-          const newIsDefault = !newContent || newContent.includes('og-image.jpg');
-          const newHasWorkTitle = newTitle && !newTitle.startsWith('Copus') && newTitle.includes('–');
+            let contentReady = false;
+            if (waitingForTreasury) {
+              contentReady = !newIsDomStale && newExtracted && newExtracted.title;
+            } else if (waitingForDefault) {
+              contentReady = newIsDefault || newTitle.startsWith('Copus');
+            } else {
+              contentReady = !newIsDefault || newHasWorkTitle;
+            }
 
-          // Check extracted title for treasury pages
-          const newExtracted = extractPageTitle();
-          const newIsDomStale = newExtracted && newExtracted.isStale;
-
-          console.log('[Copus CS] Retry', i + 1, ':', { title: newTitle, extractedTitle: newExtracted?.title, ogImage: newContent, isDefault: newIsDefault, isDomStale: newIsDomStale });
-
-          // Check if content has updated to expected state
-          let contentReady = false;
-          if (waitingForTreasury) {
-            // For treasury, we need DOM to have treasury content (not stale)
-            contentReady = !newIsDomStale && newExtracted && newExtracted.title;
-          } else if (waitingForDefault) {
-            contentReady = newIsDefault || newTitle.startsWith('Copus');  // Waiting for homepage defaults
-          } else {
-            contentReady = !newIsDefault || newHasWorkTitle;              // Waiting for work-specific content
-          }
-
-          if (contentReady) {
-            console.log('[Copus CS] Content ready, returning data');
-            const images = collectPageImages();
-            return {
-              title: (newExtracted && newExtracted.title) || document.title,
-              url: window.location.href,
-              images,
-              ogImageContent: newOgImage ? newOgImage.content : null
-            };
+            if (contentReady) {
+              const images = collectPageImages();
+              return {
+                title: (newExtracted && newExtracted.title) || document.title,
+                url: window.location.href,
+                images,
+                ogImageContent: newOgImage ? newOgImage.content : null
+              };
+            }
           }
         }
-        console.log('[Copus CS] Timeout waiting for content update');
       }
 
-      // Collect current data (either no wait needed or timeout reached)
+      // Collect current data
       const images = collectPageImages();
       const finalOgImage = document.querySelector("meta[property='og:image']");
       const finalExtracted = extractPageTitle();
       const finalTitle = (finalExtracted && finalExtracted.title) || document.title;
-      console.log('[Copus CS] Returning final data:', { title: finalTitle, ogImage: finalOgImage?.content, imageCount: images.length });
       return {
         title: finalTitle,
         url: window.location.href,
