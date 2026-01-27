@@ -135,8 +135,6 @@ function cacheElements() {
 
   // Traces elements (others who curated this URL)
   elements.tracesIcon = document.getElementById('traces-icon');
-  elements.tracesBadge = document.getElementById('traces-badge');
-  elements.tracesCount = document.getElementById('traces-count');
   elements.tracesView = document.getElementById('traces-view');
   elements.tracesBackButton = document.getElementById('traces-back-button');
   elements.tracesList = document.getElementById('traces-list');
@@ -1403,20 +1401,11 @@ function showTracesIndicator(count) {
   if (elements.tracesIcon) {
     elements.tracesIcon.style.display = 'flex';
   }
-  if (elements.tracesBadge && count > 0) {
-    elements.tracesBadge.style.display = 'flex';
-    if (elements.tracesCount) {
-      elements.tracesCount.textContent = count > 99 ? '99+' : count.toString();
-    }
-  }
 }
 
 function hideTracesIndicator() {
   if (elements.tracesIcon) {
     elements.tracesIcon.style.display = 'none';
-  }
-  if (elements.tracesBadge) {
-    elements.tracesBadge.style.display = 'none';
   }
 }
 

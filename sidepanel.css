@@ -2306,29 +2306,6 @@ input, select, textarea {
   object-fit: contain;
 }
 
-.traces-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #F23A00;
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
-  border-radius: 50%;
-  min-width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  box-sizing: border-box;
-  animation: tracePulse 2s ease-in-out infinite;
-}
-
-@keyframes tracePulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
 
 /* Traces View */
 .traces-view {

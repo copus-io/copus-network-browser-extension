@@ -608,8 +608,8 @@ function showTracesFloatingIndicator(count, traces = []) {
         <img src="https://c.animaapp.com/mg0kz9olCQ44yb/img/ic-fractopus-open.svg" alt="Copus" width="28" height="28" />
       </div>
       <div class="copus-traces-content">
-        <span class="copus-traces-line1"><span class="copus-traces-count">${count}</span> ${count === 1 ? 'person' : 'people'}</span>
-        <span class="copus-traces-line2">shared thoughts here</span>
+        <span class="copus-traces-line1">${count} ${count === 1 ? 'person' : 'people'} also</span>
+        <span class="copus-traces-line2">curated this page</span>
       </div>
       <div class="copus-traces-arrow">→</div>
     </div>
@@ -729,27 +729,6 @@ function showTracesFloatingIndicator(count, traces = []) {
     #${TRACES_INDICATOR_ID}.minimized .copus-traces-icon img {
       width: 24px;
       height: 24px;
-    }
-
-    #${TRACES_INDICATOR_ID}.minimized .copus-traces-icon::after {
-      content: '${count}';
-      position: absolute;
-      top: -12px;
-      right: -16px;
-      background: #f23a00;
-      color: white;
-      font-size: 11px;
-      font-weight: bold;
-      width: 20px;
-      height: 20px;
-      line-height: 20px;
-      border-radius: 50%;
-      text-align: center;
-      box-shadow: 0 2px 6px rgba(242, 58, 0, 0.4);
-    }
-
-    #${TRACES_INDICATOR_ID}.minimized .copus-traces-icon {
-      position: relative;
     }
   `;
 
