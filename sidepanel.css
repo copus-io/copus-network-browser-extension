@@ -2591,6 +2591,21 @@ input, select, textarea {
   opacity: 0.7;
 }
 
+.trace-comment-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.trace-comment-link:hover {
+  color: #2191FB;
+}
+
+.trace-comment-link:hover svg {
+  opacity: 1;
+  stroke: #2191FB;
+}
+
 /* Treasure Button - matches main site style */
 .trace-treasure-btn {
   display: inline-flex;

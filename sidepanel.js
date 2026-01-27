@@ -1502,12 +1502,12 @@ function createTraceCard(trace) {
         ${needsExpand ? '<button class="trace-expand-btn">Read more</button>' : ''}
       </div>
       <div class="trace-footer">
-        <span class="trace-stat">
+        <a href="${workUrl}#comments" target="_blank" class="trace-stat trace-comment-link" title="View comments">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
           ${trace.commentCount || 0}
-        </span>
+        </a>
         <button class="trace-treasure-btn" data-uuid="${trace.uuid}" data-id="${trace.id || ''}" title="Collect to your treasury">
           <img class="treasure-icon" src="https://c.animaapp.com/mft5gmofxQLTNf/img/treasure-icon.svg" alt="Treasure" />
           <span class="treasure-count">${likeCount}</span>
