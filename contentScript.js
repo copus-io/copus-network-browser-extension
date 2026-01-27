@@ -39,9 +39,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Extract video ID from URL
         const videoIdMatch = currentUrl.match(/[?&]v=([^&]+)/);
         const videoId = videoIdMatch ? videoIdMatch[1] : null;
+        console.log('[Copus YT] Video ID from URL:', videoId);
 
         // Construct YouTube thumbnail URL directly (more reliable than og:image)
         const youtubeThumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg` : null;
+        console.log('[Copus YT] Constructed thumbnail:', youtubeThumbnail);
 
         // Get the initial title - this might be stale from previous video
         const initialDocTitle = document.title;
@@ -65,6 +67,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         };
 
         const initialElementTitle = getVideoTitleFromElement();
+        console.log('[Copus YT] Initial titles:', { docTitle: initialDocTitle, elementTitle: initialElementTitle });
 
         // Wait for title to change from initial value (up to 2 seconds)
         const maxRetries = 10;
@@ -76,6 +79,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Check if video title element has changed
           const currentElementTitle = getVideoTitleFromElement();
           if (currentElementTitle && currentElementTitle !== initialElementTitle) {
+            console.log('[Copus YT] Element title changed:', { from: initialElementTitle, to: currentElementTitle });
             youtubeTitle = currentElementTitle;
             break;
           }
@@ -84,6 +88,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const currentDocTitle = document.title;
           if (currentDocTitle !== initialDocTitle) {
             const cleanTitle = currentDocTitle.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '');
+            console.log('[Copus YT] Doc title changed:', { from: initialDocTitle, to: currentDocTitle, clean: cleanTitle });
             if (cleanTitle && cleanTitle.length > 0) {
               youtubeTitle = cleanTitle;
               break;
@@ -92,6 +97,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           // If on first load (not SPA nav), element title might already be correct
           if (i >= 2 && currentElementTitle) {
+            console.log('[Copus YT] Using current element title after retries:', currentElementTitle);
             youtubeTitle = currentElementTitle;
             break;
           }
@@ -101,7 +107,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!youtubeTitle) {
           youtubeTitle = getVideoTitleFromElement() ||
                          document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '');
+          console.log('[Copus YT] Fallback title:', youtubeTitle);
         }
+
+        console.log('[Copus YT] Final result:', { title: youtubeTitle, thumbnail: youtubeThumbnail, videoId });
 
         // Return YouTube-specific data with constructed thumbnail
         const images = collectPageImages();
