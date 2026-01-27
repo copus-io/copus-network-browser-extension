@@ -34,8 +34,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const isTwitter = currentUrl.includes('twitter.com') || currentUrl.includes('x.com');
       const isCopusSite = currentUrl.includes('copus.network') || currentUrl.includes('copus.io');
 
-      // For YouTube video pages, wait for title to change (SPA navigation keeps old title briefly)
+      // For YouTube video pages, wait for title to change and construct thumbnail from video ID
       if (isYouTube && currentUrl.includes('/watch')) {
+        // Extract video ID from URL
+        const videoIdMatch = currentUrl.match(/[?&]v=([^&]+)/);
+        const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
+        // Construct YouTube thumbnail URL directly (more reliable than og:image)
+        const youtubeThumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg` : null;
+
         // Get the initial title - this might be stale from previous video
         const initialDocTitle = document.title;
 
@@ -59,8 +66,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const initialElementTitle = getVideoTitleFromElement();
 
-        // Wait for title to change from initial value (indicating new video loaded)
-        const maxRetries = 15;
+        // Wait for title to change from initial value (up to 2 seconds)
+        const maxRetries = 10;
         let youtubeTitle = null;
 
         for (let i = 0; i < maxRetries; i++) {
@@ -84,7 +91,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           // If on first load (not SPA nav), element title might already be correct
-          if (i >= 3 && currentElementTitle) {
+          if (i >= 2 && currentElementTitle) {
             youtubeTitle = currentElementTitle;
             break;
           }
@@ -96,16 +103,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                          document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '');
         }
 
-        if (youtubeTitle) {
-          const images = collectPageImages();
-          const ogImage = document.querySelector("meta[property='og:image']");
-          return {
-            title: youtubeTitle,
-            url: currentUrl,
-            images,
-            ogImageContent: ogImage ? ogImage.content : null
-          };
-        }
+        // Return YouTube-specific data with constructed thumbnail
+        const images = collectPageImages();
+        return {
+          title: youtubeTitle || 'YouTube Video',
+          url: currentUrl,
+          images,
+          ogImageContent: youtubeThumbnail
+        };
       }
 
       // For Twitter/X, wait for title to update

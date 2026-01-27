@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Copus - Internet Treasure Map",
   "description": "Open-web curation network that rewards tastemakers for sharing valuable content.",
-  "version": "1.12.50",
+  "version": "1.12.51",
   "permissions": [
     "activeTab",
     "tabs",

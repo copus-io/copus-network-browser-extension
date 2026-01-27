@@ -4282,9 +4282,49 @@ function resetFormForNewTab(tab) {
   checkTracesForCurrentUrl(tab.url || '');
 }
 
+// Debounce and dedup for loadPageData
+let loadPageDataTimer = null;
+let loadPageDataInProgress = false;
+let lastLoadPageDataUrl = '';
+
 // Separate function for page data loading (non-blocking)
 // useRetry: if true, wait for React Helmet to update og:image (for SPA navigation)
 async function loadPageData(tabId, useRetry = false) {
+  // Get current URL to check for duplicates
+  let currentUrl = '';
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    currentUrl = tab?.url || '';
+  } catch (e) {}
+
+  // Skip if already loading this URL
+  if (loadPageDataInProgress && currentUrl === lastLoadPageDataUrl) {
+    return;
+  }
+
+  // Debounce rapid calls
+  if (loadPageDataTimer) {
+    clearTimeout(loadPageDataTimer);
+  }
+
+  return new Promise((resolve, reject) => {
+    loadPageDataTimer = setTimeout(async () => {
+      loadPageDataInProgress = true;
+      lastLoadPageDataUrl = currentUrl;
+
+      try {
+        await _loadPageDataImpl(tabId, useRetry);
+        resolve();
+      } catch (e) {
+        reject(e);
+      } finally {
+        loadPageDataInProgress = false;
+      }
+    }, 100); // 100ms debounce
+  });
+}
+
+async function _loadPageDataImpl(tabId, useRetry = false) {
   try {
     let pageData;
     const fetchFn = useRetry ? fetchPageDataWithRetry : fetchPageData;
