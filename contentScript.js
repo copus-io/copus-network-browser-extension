@@ -34,21 +34,77 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const isTwitter = currentUrl.includes('twitter.com') || currentUrl.includes('x.com');
       const isCopusSite = currentUrl.includes('copus.network') || currentUrl.includes('copus.io');
 
-      // For YouTube video pages, wait for proper title
+      // For YouTube video pages, wait for title to change (SPA navigation keeps old title briefly)
       if (isYouTube && currentUrl.includes('/watch')) {
-        const maxRetries = 6;
+        // Get the initial title - this might be stale from previous video
+        const initialDocTitle = document.title;
+
+        // Function to get current video title from page element
+        const getVideoTitleFromElement = () => {
+          const selectors = [
+            'h1.ytd-video-primary-info-renderer yt-formatted-string',
+            'h1.ytd-watch-metadata yt-formatted-string',
+            '#title h1 yt-formatted-string',
+            '#above-the-fold #title yt-formatted-string',
+            'h1.title'
+          ];
+          for (const selector of selectors) {
+            const el = document.querySelector(selector);
+            if (el && el.textContent && el.textContent.trim().length > 0) {
+              return el.textContent.trim();
+            }
+          }
+          return null;
+        };
+
+        const initialElementTitle = getVideoTitleFromElement();
+
+        // Wait for title to change from initial value (indicating new video loaded)
+        const maxRetries = 15;
+        let youtubeTitle = null;
+
         for (let i = 0; i < maxRetries; i++) {
-          const title = document.title;
-          // YouTube video titles end with " - YouTube", generic page is just "YouTube"
-          if (title && title !== 'YouTube' && title.includes(' - YouTube')) {
+          await new Promise(r => setTimeout(r, 200));
+
+          // Check if video title element has changed
+          const currentElementTitle = getVideoTitleFromElement();
+          if (currentElementTitle && currentElementTitle !== initialElementTitle) {
+            youtubeTitle = currentElementTitle;
             break;
           }
-          // Also try to extract from page element
-          const videoTitle = document.querySelector('h1.ytd-video-primary-info-renderer, h1.ytd-watch-metadata yt-formatted-string');
-          if (videoTitle && videoTitle.textContent && videoTitle.textContent.trim()) {
+
+          // Check if document.title has changed
+          const currentDocTitle = document.title;
+          if (currentDocTitle !== initialDocTitle) {
+            const cleanTitle = currentDocTitle.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '');
+            if (cleanTitle && cleanTitle.length > 0) {
+              youtubeTitle = cleanTitle;
+              break;
+            }
+          }
+
+          // If on first load (not SPA nav), element title might already be correct
+          if (i >= 3 && currentElementTitle) {
+            youtubeTitle = currentElementTitle;
             break;
           }
-          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // Fallback: use whatever title we can find
+        if (!youtubeTitle) {
+          youtubeTitle = getVideoTitleFromElement() ||
+                         document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, '');
+        }
+
+        if (youtubeTitle) {
+          const images = collectPageImages();
+          const ogImage = document.querySelector("meta[property='og:image']");
+          return {
+            title: youtubeTitle,
+            url: currentUrl,
+            images,
+            ogImageContent: ogImage ? ogImage.content : null
+          };
         }
       }
 
